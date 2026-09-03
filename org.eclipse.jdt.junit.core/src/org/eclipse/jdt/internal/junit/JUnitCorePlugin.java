@@ -30,12 +30,12 @@ import org.eclipse.jdt.junit.TestRunListener;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IConfigurationElement;
 import org.eclipse.core.runtime.IExtensionPoint;
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.ListenerList;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 
 import org.eclipse.jdt.internal.junit.model.JUnitModel;
@@ -67,6 +67,8 @@ public class JUnitCorePlugin extends Plugin {
 	public final static String JUNIT5_SUITE_ANNOTATION_NAME= "org.junit.platform.suite.api.Suite"; //$NON-NLS-1$
 	public final static String JUNIT5_JUPITER_TEST_ANNOTATION_NAME= "org.junit.jupiter.api.Test"; //$NON-NLS-1$
 	public final static String JUNIT5_JUPITER_NESTED_ANNOTATION_NAME= "org.junit.jupiter.api.Nested"; //$NON-NLS-1$
+	public final static String JUNIT5_JUPITER_TEST_TEMPLATE_ANNOTATION= "org.junit.jupiter.api.TestTemplate"; //$NON-NLS-1$
+	public final static String JUNIT5_JUPITER_CLASS_TEMPLATE_ANNOTATION= "org.junit.jupiter.api.ClassTemplate"; //$NON-NLS-1$
 
 	public final static String JUNIT4_ANNOTATION_NAME= "org.junit.Test"; //$NON-NLS-1$
 	public static final String SIMPLE_TEST_INTERFACE_NAME= "Test"; //$NON-NLS-1$
@@ -115,14 +117,6 @@ public class JUnitCorePlugin extends Plugin {
 
 	public static String getPluginId() {
 		return CORE_PLUGIN_ID;
-	}
-
-	public static void log(Throwable e) {
-		log(new Status(IStatus.ERROR, getPluginId(), IStatus.ERROR, "Error", e)); //$NON-NLS-1$
-	}
-
-	public static void log(IStatus status) {
-		getDefault().getLog().log(status);
 	}
 
 	/**
@@ -197,7 +191,7 @@ public class JUnitCorePlugin extends Plugin {
 			}
 		}
 		if (!status.isOK()) {
-			JUnitCorePlugin.log(status);
+			ILog.of(JUnitCorePlugin.class).log(status);
 		}
 	}
 

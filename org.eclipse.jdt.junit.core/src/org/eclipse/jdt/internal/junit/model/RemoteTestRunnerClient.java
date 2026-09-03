@@ -26,10 +26,13 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.ISafeRunnable;
 import org.eclipse.core.runtime.SafeRunner;
 
 import org.eclipse.jdt.internal.junit.JUnitCorePlugin;
+import org.eclipse.jdt.internal.junit.launcher.ITestKind;
+import org.eclipse.jdt.internal.junit.launcher.TestKindRegistry;
 import org.eclipse.jdt.internal.junit.runner.MessageIds;
 import org.eclipse.jdt.internal.junit.runner.RemoteTestRunner;
 
@@ -39,10 +42,12 @@ import org.eclipse.jdt.internal.junit.runner.RemoteTestRunner;
  */
 public class RemoteTestRunnerClient {
 
+	private static final ILog LOG = ILog.of(RemoteTestRunnerClient.class);
+
 	public abstract static class ListenerSafeRunnable implements ISafeRunnable {
 		@Override
 		public void handleException(Throwable exception) {
-			JUnitCorePlugin.log(exception);
+			LOG.error(exception.getMessage(), exception);
 		}
 	}
 	/**
@@ -255,7 +260,15 @@ public class RemoteTestRunnerClient {
 	 */
 	private int fFailureKind;
 
-	private boolean fDebug= false;
+	private boolean fDebug;
+
+	private volatile boolean stopped;
+	private volatile boolean ended;
+	private final ITestKind testRunnerKind;
+
+	public RemoteTestRunnerClient(ITestKind testRunnerKind) {
+		this.testRunnerKind= testRunnerKind;
+	}
 
 	/**
 	 * Reads the message stream from the RemoteTestRunner
@@ -283,7 +296,7 @@ public class RemoteTestRunnerClient {
 			} catch (SocketException e) {
 				notifyTestRunTerminated();
 			} catch (IOException e) {
-				JUnitCorePlugin.log(e);
+				LOG.error(e.getMessage(), e);
 				// fall through
 			}
 			shutDown();
@@ -311,6 +324,7 @@ public class RemoteTestRunnerClient {
 		if (isRunning()) {
 			fWriter.println(MessageIds.TEST_STOP);
 			fWriter.flush();
+			stopped = true;
 		}
 	}
 
@@ -348,6 +362,15 @@ public class RemoteTestRunnerClient {
 				fServerSocket= null;
 			}
 		} catch(IOException e) {
+		}
+		if (stopped || !ended) {
+			// JUnit 3 and 4 RemoteTestRunnerClient properly handle notifying stopped/terminated
+			String testKind= testRunnerKind.getId();
+			if (TestKindRegistry.JUNIT3_TEST_KIND_ID.equals(testKind)
+					|| TestKindRegistry.JUNIT4_TEST_KIND_ID.equals(testKind)) {
+				return;
+			}
+			notifyTestRunStopped(0);
 		}
 	}
 
@@ -506,9 +529,11 @@ public class RemoteTestRunnerClient {
 				}
 			});
 		}
+		stopped = false;
 	}
 
 	private void testRunEnded(final long elapsedTime) {
+		ended = true;
 		if (JUnitCorePlugin.isStopped())
 			return;
 		for (ITestRunListener2 listener : fListeners) {

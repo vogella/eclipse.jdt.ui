@@ -199,6 +199,8 @@ public class TestViewer {
 	private final FailuresOnlyFilter fFailuresOnlyFilter= new FailuresOnlyFilter();
 	private final IgnoredOnlyFilter fIgnoredOnlyFilter= new IgnoredOnlyFilter();
 
+	private final DisableTestAction fDisableTestAction;
+
 	private final TestRunnerViewPart fTestRunnerPart;
 	private final Clipboard fClipboard;
 
@@ -229,6 +231,8 @@ public class TestViewer {
 	public TestViewer(Composite parent, Clipboard clipboard, TestRunnerViewPart runner) {
 		fTestRunnerPart= runner;
 		fClipboard= clipboard;
+
+		fDisableTestAction= new DisableTestAction();
 
 		fLayoutMode= TestRunnerViewPart.LAYOUT_HIERARCHICAL;
 
@@ -291,11 +295,25 @@ public class TestViewer {
 				if (!fTestRunnerPart.lastLaunchIsKeptAlive()) {
 					addRerunActions(manager, testSuiteElement);
 				}
+
+				// Add "Disable This Test" for parameterized test suites
+				fDisableTestAction.update(testSuiteElement);
+				if (fDisableTestAction.isEnabled()) {
+					manager.add(new Separator());
+					manager.add(fDisableTestAction);
+				}
 			} else {
 				TestCaseElement testCaseElement= (TestCaseElement) testElement;
 				manager.add(getOpenTestAction(testCaseElement));
 				manager.add(new Separator());
 				addRerunActions(manager, testCaseElement);
+
+				// For normal tests, offer to disable
+				fDisableTestAction.update(testCaseElement);
+				if (fDisableTestAction.isEnabled()) {
+					manager.add(new Separator());
+					manager.add(fDisableTestAction);
+				}
 			}
 			if (fLayoutMode == TestRunnerViewPart.LAYOUT_HIERARCHICAL) {
 				manager.add(new Separator());
@@ -448,17 +466,9 @@ public class TestViewer {
 		String testName= testSuite.getTestName();
 		ITestElement[] children= testSuite.getChildren();
 
-		if (children.length > 0 && children[0] instanceof TestCaseElement tce && tce.isDynamicTest()) {
+		if (children.length > 0 && children[0] instanceof TestCaseElement tce) {
 			// a group of parameterized tests
 			return new OpenTestAction(fTestRunnerPart, tce, tce.getParameterTypes());
-		}
-		if (children.length == 0) {
-			// check if we have applied the workaround for: https://github.com/eclipse-jdt/eclipse.jdt.ui/issues/945
-			TestCaseElement child= testSuite.getSingleDynamicChild();
-			if (child != null) {
-				// a parameterized test that ran only one test
-				return new OpenTestAction(fTestRunnerPart, child, child.getParameterTypes());
-			}
 		}
 
 		int index= testName.indexOf('(');

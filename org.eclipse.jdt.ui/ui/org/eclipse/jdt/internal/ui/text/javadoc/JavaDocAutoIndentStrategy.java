@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2025 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -39,6 +39,7 @@ import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IModuleDescription;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.manipulation.CodeGeneration;
 
@@ -102,10 +103,14 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 			buf.append(indentation.substring(0, lengthToAdd));
 
 			if (firstNonWS < offset) {
+				boolean useMarkdown= false;
 				if (d.getChar(firstNonWS) == '/') {
 					// Javadoc/markdown started on this line
 					if (d.getChar(firstNonWS+1) == '/') {
 						buf.append("/// "); //$NON-NLS-1$
+						useMarkdown= true;
+						if (handleMarkdownCodeFence(d, c, lineOffset, offset, indentation, buf))
+							return;
 					} else {
 						buf.append(" * "); //$NON-NLS-1$
 					}
@@ -131,7 +136,7 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 							if (unit != null) {
 								try {
 									JavaModelUtil.reconcile(unit);
-									String string= createJavaDocTags(d, c, indentation, lineDelimiter, unit);
+									String string= createJavaDocTags(d, c, indentation, lineDelimiter, unit, useMarkdown);
 									buf.append(restOfLine);
 									// only add tags if they are non-empty - the empty line has already been added above.
 									if (string != null && !"*".equals(string.trim())) //$NON-NLS-1$
@@ -158,6 +163,48 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 		} catch (BadLocationException excp) {
 			// stop work
 		}
+	}
+
+	private boolean handleMarkdownCodeFence(IDocument d, DocumentCommand c, int lineOffset, int offset, String indentation, StringBuilder buf) {
+		try {
+			if (!isPreferenceTrue(PreferenceConstants.EDITOR_CLOSE_FENCED_CODE_BLOCK))
+				return false;
+			ICompilationUnit cu= getCompilationUnit();
+			if (cu == null)
+				return false;
+
+			IJavaProject project= cu.getJavaProject();
+			String compliance= project != null
+					? project.getOption(JavaCore.COMPILER_COMPLIANCE, true)
+					: JavaCore.getOption(JavaCore.COMPILER_COMPLIANCE);
+
+			if (JavaCore.compareJavaVersions(compliance, JavaCore.VERSION_23) < 0)
+				return false;
+
+			String prefix= d.get(lineOffset, offset - lineOffset).trim();
+
+			// CommonMark allows up to 3 spaces of indentation before the opening code fence.
+			if (!("///```".equals(prefix) || "/// ```".equals(prefix) || "///  ```".equals(prefix) || "///   ```".equals(prefix))) //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+				return false;
+
+			String delimiter= TextUtilities.getDefaultLineDelimiter(d);
+
+			c.shiftsCaret= false;
+			c.caretOffset= c.offset + buf.length();
+
+			buf.append(delimiter);
+			buf.append(indentation);
+			buf.append("/// ```"); //$NON-NLS-1$
+
+			c.text= buf.toString();
+
+			return true;
+
+		} catch (BadLocationException e) {
+			JavaPlugin.log(e);
+		}
+
+		return false;
 	}
 
 	/**
@@ -206,7 +253,8 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 	 * @throws CoreException if accessing the Java model fails
 	 * @throws BadLocationException if accessing the document fails
 	 */
-	private String createJavaDocTags(IDocument document, DocumentCommand command, String indentation, String lineDelimiter, ICompilationUnit unit)
+	private String createJavaDocTags(IDocument document, DocumentCommand command, String indentation,
+			String lineDelimiter, ICompilationUnit unit, boolean useMarkdown)
 		throws CoreException, BadLocationException
 	{
 		IJavaElement element= unit.getElementAt(command.offset);
@@ -215,13 +263,13 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 
 		switch (element.getElementType()) {
 		case IJavaElement.TYPE:
-			return createTypeTags(document, command, indentation, lineDelimiter, (IType) element);
+			return createTypeTags(document, command, indentation, lineDelimiter, (IType) element, useMarkdown);
 
 		case IJavaElement.METHOD:
-			return createMethodTags(document, command, indentation, lineDelimiter, (IMethod) element);
+			return createMethodTags(document, command, indentation, lineDelimiter, (IMethod) element, useMarkdown);
 
 		case IJavaElement.JAVA_MODULE:
-			return createModuleTags(document, command, indentation, lineDelimiter, (IModuleDescription) element);
+			return createModuleTags(document, command, indentation, lineDelimiter, (IModuleDescription) element, useMarkdown);
 
 		default:
 			return null;
@@ -260,11 +308,12 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 		return Strings.changeIndent(comment, 0, project, indentation, lineDelimiter);
 	}
 
-	private String createTypeTags(IDocument document, DocumentCommand command, String indentation, String lineDelimiter, IType type)
+	private String createTypeTags(IDocument document, DocumentCommand command, String indentation,
+			String lineDelimiter, IType type, boolean useMarkdown)
 		throws CoreException, BadLocationException
 	{
 		String[] typeParamNames= StubUtility.getTypeParameterNames(type.getTypeParameters());
-		String comment= CodeGeneration.getTypeComment(type.getCompilationUnit(), type.getTypeQualifiedName('.'), typeParamNames, lineDelimiter);
+		String comment= CodeGeneration.getTypeComment(type.getCompilationUnit(), type.getTypeQualifiedName('.'), typeParamNames, lineDelimiter, useMarkdown);
 		if (comment != null) {
 			boolean javadocComment= comment.startsWith("/**"); //$NON-NLS-1$
 			if (!isFirstComment(document, command, type, javadocComment))
@@ -274,10 +323,11 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 		return null;
 	}
 
-	private String createModuleTags(IDocument document, DocumentCommand command, String indentation, String lineDelimiter, IModuleDescription module)
+	private String createModuleTags(IDocument document, DocumentCommand command, String indentation,
+			String lineDelimiter, IModuleDescription module, boolean useMarkdown)
 			throws CoreException, BadLocationException
 		{
-			String comment= CodeGeneration.getModuleComment(module.getCompilationUnit(), module, lineDelimiter);
+			String comment= CodeGeneration.getModuleComment(module.getCompilationUnit(), module, lineDelimiter, useMarkdown);
 			if (comment != null) {
 				boolean javadocComment= comment.startsWith("/**"); //$NON-NLS-1$
 				if (!isFirstComment(document, command, module, javadocComment))
@@ -287,12 +337,13 @@ public class JavaDocAutoIndentStrategy extends DefaultIndentLineAutoEditStrategy
 			return null;
 		}
 
-	private String createMethodTags(IDocument document, DocumentCommand command, String indentation, String lineDelimiter, IMethod method)
+	private String createMethodTags(IDocument document, DocumentCommand command, String indentation,
+			String lineDelimiter, IMethod method, boolean useMarkdown)
 		throws CoreException, BadLocationException
 	{
 		IRegion partition= TextUtilities.getPartition(document, fPartitioning, command.offset, false);
 		IMethod inheritedMethod= getInheritedMethod(method);
-		String comment= CodeGeneration.getMethodComment(method, inheritedMethod, lineDelimiter);
+		String comment= CodeGeneration.getMethodComment(method, inheritedMethod, lineDelimiter, useMarkdown);
 		if (comment != null) {
 			comment= comment.trim();
 			boolean javadocComment= comment.startsWith("/**"); //$NON-NLS-1$

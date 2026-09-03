@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2024 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -29,6 +29,9 @@ import java.util.regex.Pattern;
 import org.eclipse.equinox.bidi.StructuredTextTypeHandlerFactory;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.ScrolledComposite;
+import org.eclipse.swt.events.ControlAdapter;
+import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.SelectionEvent;
@@ -155,7 +158,6 @@ import org.eclipse.jdt.internal.ui.refactoring.contentassist.CompletionContextRe
 import org.eclipse.jdt.internal.ui.refactoring.contentassist.ControlContentAssistHelper;
 import org.eclipse.jdt.internal.ui.refactoring.contentassist.JavaPackageCompletionProcessor;
 import org.eclipse.jdt.internal.ui.refactoring.contentassist.JavaTypeCompletionProcessor;
-import org.eclipse.jdt.internal.ui.util.Progress;
 import org.eclipse.jdt.internal.ui.util.SWTUtil;
 import org.eclipse.jdt.internal.ui.wizards.NewWizardMessages;
 import org.eclipse.jdt.internal.ui.wizards.SuperInterfaceSelectionDialog;
@@ -513,6 +515,12 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 	public static final int RECORD_TYPE = 5;
 
 	/**
+	 * Constant to signal that the created type is an compact file source.
+	 * @since 3.39
+	 */
+	public static final int COMPACT_TYPE = 6;
+
+	/**
 	 * Creates a new <code>NewTypeWizardPage</code>.
 	 *
 	 * @param isClass <code>true</code> if a new class is to be created; otherwise
@@ -863,6 +871,30 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 		return JavaConventionsUtil.validateJavaTypeName(text, project);
 	}
 
+	/**
+	 * @since 3.37
+	 */
+	protected Composite createScrollableContainer(Composite parent) {
+		ScrolledComposite sc= new ScrolledComposite(parent, SWT.V_SCROLL);
+		sc.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+		sc.setExpandHorizontal(true);
+		sc.setExpandVertical(true);
+		Composite content= new Composite(sc, SWT.NONE);
+		sc.setContent(content);
+
+		sc.addControlListener(new ControlAdapter() {
+			@Override
+			public void controlResized(ControlEvent e) {
+				int width= sc.getClientArea().width;
+				content.setSize(content.computeSize(width, SWT.DEFAULT));
+				sc.setMinSize(content.computeSize(width, SWT.DEFAULT));
+			}
+		});
+
+		return content;
+	}
+
+
 	private static IStatus validatePackageName(String text, IJavaProject project) {
 		if (project == null || !project.exists()) {
 			return JavaConventions.validatePackageName(text, JavaCore.VERSION_1_8, JavaCore.VERSION_1_8);
@@ -1064,6 +1096,14 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 			}
 
 			DialogField.createEmptySpace(composite);
+		}
+		if (fTypeKind == COMPACT_TYPE) {
+			fAccMdfButtons.enableSelectionButton(PRIVATE_INDEX, false);
+			fAccMdfButtons.enableSelectionButton(PROTECTED_INDEX, true);
+			fAccMdfButtons.enableSelectionButton(DEFAULT_INDEX, true);
+			fAccMdfButtons.enableSelectionButton(PUBLIC_INDEX, true);
+			fAccMdfButtons.setSelection(DEFAULT_INDEX, true);
+			fAccMdfButtons.setSelection(PUBLIC_INDEX, false);
 		}
 	}
 
@@ -1372,6 +1412,7 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 			fModifierStatus= modifiersChanged();
 			fieldName= MODIFIERS;
 		} else if (field == fSealedMdfButtons) {
+			fModifierStatus= modifiersChanged();
 			fSealedModifierStatus= sealedModifiersChanged();
 			fieldName= SEALEDMODIFIERS;
 		} else {
@@ -1857,6 +1898,13 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 		    	}
 	    	} else {
 	    		return new StatusInfo(IStatus.WARNING, NewWizardMessages.NewTypeWizardPage_warning_RecordClassNotFound);
+	    	}
+	    }
+		if (fTypeKind == COMPACT_TYPE && !status.matches(IStatus.ERROR)) {
+	    	if (root != null) {
+	    		if (!JavaModelUtil.is25OrHigher(root.getJavaProject())) {
+	    			return new StatusInfo(IStatus.ERROR, Messages.format(NewWizardMessages.NewTypeWizardPage_warning_NotJDKCompliant2, new String[] {BasicElementLabels.getJavaElementName(root.getJavaProject().getElementName()), "25" })); //$NON-NLS-1$
+	    		}
 	    	}
 	    }
 
@@ -2711,7 +2759,7 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 			monitor= new NullProgressMonitor();
 		}
 
-		monitor.beginTask(NewWizardMessages.NewTypeWizardPage_operationdesc, 8);
+		SubMonitor subMonitor= SubMonitor.convert(monitor, NewWizardMessages.NewTypeWizardPage_operationdesc, 8);
 
 		IPackageFragmentRoot root= getPackageFragmentRoot();
 		IPackageFragment pack= getPackageFragment();
@@ -2721,9 +2769,9 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 
 		if (!pack.exists()) {
 			String packName= pack.getElementName();
-			pack= root.createPackageFragment(packName, true, Progress.subMonitor(monitor, 1));
+			pack= root.createPackageFragment(packName, true, subMonitor.split(1));
 		} else {
-			monitor.worked(1);
+			subMonitor.split(1);
 		}
 
 		boolean needsSave;
@@ -2745,18 +2793,23 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 				lineDelimiter= StubUtility.getLineDelimiterUsed(pack.getJavaProject());
 
 				String cuName= getCompilationUnitName(typeName);
-				ICompilationUnit parentCU= pack.createCompilationUnit(cuName, "", false, Progress.subMonitor(monitor, 2)); //$NON-NLS-1$
+				ICompilationUnit parentCU= pack.createCompilationUnit(cuName, "", false, subMonitor.split(2)); //$NON-NLS-1$
 				// create a working copy with a new owner
 
 				needsSave= true;
-				parentCU.becomeWorkingCopy(Progress.subMonitor(monitor, 1)); // cu is now a (primary) working copy
+				parentCU.becomeWorkingCopy(subMonitor.split(1)); // cu is now a (primary) working copy
 				connectedCU= parentCU;
 
 				IBuffer buffer= parentCU.getBuffer();
-
 				String simpleTypeStub= constructSimpleTypeStub();
-				String cuContent= constructCUContent(parentCU, simpleTypeStub, lineDelimiter);
-				buffer.setContents(cuContent);
+				String cuContent;
+				if (fTypeKind == COMPACT_TYPE) {
+					cuContent= simpleTypeStub;
+					buffer.setContents(cuContent);
+				} else {
+					cuContent= constructCUContent(parentCU, simpleTypeStub, lineDelimiter);
+					buffer.setContents(cuContent);
+				}
 
 				CompilationUnit astRoot= createASTForImports(parentCU);
 				existingImports= getExistingImports(astRoot);
@@ -2784,7 +2837,7 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 				ICompilationUnit parentCU= enclosingType.getCompilationUnit();
 
 				needsSave= !parentCU.isWorkingCopy();
-				parentCU.becomeWorkingCopy(Progress.subMonitor(monitor, 1)); // cu is now for sure (primary) a working copy
+				parentCU.becomeWorkingCopy(subMonitor.split(1)); // cu is now for sure (primary) a working copy
 				connectedCU= parentCU;
 
 				CompilationUnit astRoot= createASTForImports(parentCU);
@@ -2823,11 +2876,11 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 					sibling = elems.length > 0 ? elems[0] : null;
 				}
 
-				createdType= enclosingType.createType(content.toString(), sibling, false, Progress.subMonitor(monitor, 2));
+				createdType= enclosingType.createType(content.toString(), sibling, false, subMonitor.split(2));
 
 				indent= StubUtility.getIndentUsed(enclosingType) + 1;
 			}
-			if (monitor.isCanceled()) {
+			if (subMonitor.isCanceled()) {
 				throw new InterruptedException();
 			}
 
@@ -2835,11 +2888,11 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 
 			ICompilationUnit cu= createdType.getCompilationUnit();
 
-			imports.create(false, Progress.subMonitor(monitor, 1));
+			imports.create(false, subMonitor.split(1));
 
 			JavaModelUtil.reconcile(cu);
 
-			if (monitor.isCanceled()) {
+			if (subMonitor.isCanceled()) {
 				throw new InterruptedException();
 			}
 
@@ -2847,17 +2900,16 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 			CompilationUnit astRoot= createASTForImports(imports.getCompilationUnit());
 			imports= new ImportsManager(astRoot);
 
-			createTypeMembers(createdType, imports, Progress.subMonitor(monitor, 1));
+			createTypeMembers(createdType, imports, subMonitor.split(1));
 
 			// add imports
-			imports.create(false, Progress.subMonitor(monitor, 1));
+			imports.create(false, subMonitor.split(1));
 
 			removeUnusedImports(cu, existingImports, false);
 
 			JavaModelUtil.reconcile(cu);
 
 			ISourceRange range= createdType.getSourceRange();
-
 			IBuffer buf= cu.getBuffer();
 			String originalContent= buf.getText(range.getOffset(), range.getLength());
 
@@ -2871,12 +2923,13 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 					buf.replace(0, 0, fileComment + lineDelimiter);
 				}
 			}
+
 			fCreatedType= createdType;
 
 			if (needsSave) {
-				cu.commitWorkingCopy(true, Progress.subMonitor(monitor, 1));
+				cu.commitWorkingCopy(true, subMonitor.split(1));
 			} else {
-				monitor.worked(1);
+				subMonitor.split(1);
 			}
 
 			updateSealedSuperTypes();
@@ -3054,10 +3107,15 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 
 
 	private String constructSimpleTypeStub() {
+		if (fTypeKind == COMPACT_TYPE) {
+			return ""; //$NON-NLS-1$
+		}
 		StringBuilder buf= new StringBuilder("public class "); //$NON-NLS-1$
 		buf.append(getTypeName());
 		buf.append("{ }"); //$NON-NLS-1$
 		return buf.toString();
+
+
 	}
 
 	/*
@@ -3065,6 +3123,9 @@ public abstract class NewTypeWizardPage extends NewContainerWizardPage {
 	 */
 	private String constructTypeStub(ICompilationUnit parentCU, ImportsManager imports, String lineDelimiter) throws CoreException {
 		StringBuffer buf= new StringBuffer();
+		if(fTypeKind == COMPACT_TYPE) {
+			return buf.toString();
+		}
 
 		int modifiers= getModifiers();
 		buf.append(Flags.toString(modifiers));

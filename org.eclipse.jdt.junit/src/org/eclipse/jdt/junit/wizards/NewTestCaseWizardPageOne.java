@@ -24,6 +24,7 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
@@ -470,7 +471,7 @@ public class NewTestCaseWizardPageOne extends NewTypeWizardPage {
 	public void createControl(Composite parent) {
 		initializeDialogUnits(parent);
 
-		Composite composite= new Composite(parent, SWT.NONE);
+		Composite composite= createScrollableContainer(parent);
 
 		int nColumns= 4;
 
@@ -488,8 +489,8 @@ public class NewTestCaseWizardPageOne extends NewTypeWizardPage {
 		createSeparator(composite, nColumns);
 		createClassUnderTestControls(composite, nColumns);
 		createBuildPathConfigureControls(composite, nColumns);
-
-		setControl(composite);
+		ScrolledComposite sc= (ScrolledComposite) composite.getParent();
+		setControl(sc);
 
 		//set default and focus
 		String classUnderTest= getClassUnderTestText();
@@ -502,6 +503,7 @@ public class NewTestCaseWizardPageOne extends NewTypeWizardPage {
 		PlatformUI.getWorkbench().getHelpSystem().setHelp(composite, IJUnitHelpContextIds.NEW_TESTCASE_WIZARD_PAGE);
 
 		setFocus();
+		sc.setMinSize(composite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
 	}
 
 	/**
@@ -1105,19 +1107,8 @@ public class NewTestCaseWizardPageOne extends NewTypeWizardPage {
 				buffer.replace(index, index + 1, OF_TAG);
 			else if (character == '?')
 				buffer.replace(index, index + 1, QUESTION_MARK_TAG);
-			else if (!Character.isJavaIdentifierPart(character)) {
-				// Check for surrogates
-				if (!Character.isSurrogate(character)) {
-					/*
-					 * XXX: Here we should create the code point and test whether
-					 * it is a Java identifier part. Currently this is not possible
-					 * because java.lang.Character in 1.4 does not support surrogates
-					 * and because com.ibm.icu.lang.UCharacter.isJavaIdentifierPart(int)
-					 * is not correctly implemented.
-					 */
-					buffer.deleteCharAt(index);
-				}
-
+			else if (!Character.isJavaIdentifierPart(character) && !Character.isSurrogate(character)) {
+				buffer.deleteCharAt(index);
 			}
 		}
 	}

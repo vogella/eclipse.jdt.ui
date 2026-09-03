@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2021 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -36,6 +36,7 @@ import org.junit.platform.suite.api.Suite;
 	ExtractTempTests.class,
 	ExtractTempTests1d7.class,
 	ExtractTempTests1d8.class,
+	ExtractTempTests16.class,
 	RenameTempTests.class,
 	ExtractConstantTests.class,
 	PromoteTempToFieldTests.class,
@@ -84,6 +85,7 @@ import org.junit.platform.suite.api.Suite;
 	RenamePrivateMethodTests.class,
 	RenameStaticMethodTests.class,
 	RenameParametersTests.class,
+	RenameMethodWithSubtypeInLambdaTests.class,
 	MoveInstanceMethodTests.class,
 	MoveInstanceMethodTests1d8.class,
 	IntroduceIndirectionTests.class,

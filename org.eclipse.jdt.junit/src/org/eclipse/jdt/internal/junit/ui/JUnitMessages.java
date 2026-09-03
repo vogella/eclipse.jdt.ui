@@ -52,6 +52,8 @@ public final class JUnitMessages extends NLS {
 	public static String EnableStackFilterAction_action_description;
 	public static String EnableStackFilterAction_action_label;
 	public static String EnableStackFilterAction_action_tooltip;
+	public static String DisableTestAction_label;
+	public static String DisableTestAction_enable_label;
 	public static String ExpandAllAction_text;
 	public static String ExpandAllAction_tooltip;
 	public static String CollapseAllAction_text;
@@ -125,6 +127,10 @@ public final class JUnitMessages extends NLS {
 	public static String JUnitLaunchConfigurationTab_error_test_method_not_found;
 
 	public static String JUnitLaunchConfigurationTab_error_testannotationnotonpath;
+
+	public static String JUnitLaunchConfigurationTab_error_mixedJUnitJupiterVersions;
+
+	public static String JUnitLaunchConfigurationTab_error_projectnotopen;
 
 	public static String JUnitLaunchConfigurationTab_error_testcasenotonpath;
 
@@ -234,6 +240,14 @@ public final class JUnitMessages extends NLS {
 	public static String JUnitQuickFixProcessor_apply_problem_title;
 
 	public static String JUnitQuickFixProcessor_add_assert_info;
+
+	public static String JUnitQuickAssistProcessor_add_annotation_description;
+
+	public static String JUnitQuickAssistProcessor_add_annotation_info;
+
+	public static String JUnitQuickAssistProcessor_remove_annotation_description;
+
+	public static String JUnitQuickAssistProcessor_remove_annotation_info;
 
 	public static String JUnitViewEditorLauncher_dialog_title;
 
@@ -374,4 +388,5 @@ public final class JUnitMessages extends NLS {
 	public static String TestRunnerViewPart_layout_menu;
 
 	public static String TestSearchEngine_search_message_progress_monitor;
+
 }

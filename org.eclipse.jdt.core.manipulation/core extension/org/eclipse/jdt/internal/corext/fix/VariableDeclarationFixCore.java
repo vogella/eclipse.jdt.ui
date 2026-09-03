@@ -140,6 +140,10 @@ public class VariableDeclarationFixCore extends CompilationUnitRewriteOperations
 
 	public static class ReturnFinder extends ASTVisitor {
 		boolean foundOne;
+
+		public boolean getFoundOne() {
+			return foundOne;
+		}
 		@Override
 		public boolean visit(ReturnStatement node) {
 			foundOne= true;
@@ -401,7 +405,9 @@ public class VariableDeclarationFixCore extends CompilationUnitRewriteOperations
 		}
 
 		private boolean isWrittenInTypeConstructors(List<Name> writes, ITypeBinding declaringClass) {
-
+			if (writes == null) {
+				return false;
+			}
 			for (Name name : writes) {
 	            MethodDeclaration methodDeclaration= getWritingConstructor(name);
 	            if (methodDeclaration == null)

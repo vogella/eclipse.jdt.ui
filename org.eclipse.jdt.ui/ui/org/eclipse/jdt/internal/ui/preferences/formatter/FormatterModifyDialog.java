@@ -1336,6 +1336,7 @@ public class FormatterModifyDialog extends ModifyDialog {
 		Consumer<Section> modAll= s -> CheckboxPreference.addModifyAll(s, fImages);
 		fTree.builder(FormatterMessages.FormatterModifyDialog_newLines_tree_new_lines, "section-newlines") //$NON-NLS-1$
 				.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_empty_statement, DefaultCodeFormatterConstants.FORMATTER_PUT_EMPTY_STATEMENT_ON_NEW_LINE)
+				.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_textblock_statement, DefaultCodeFormatterConstants.FORMATTER_PUT_TEXT_BLOCK_QUOTES_ON_NEW_LINE)
 				.gap()
 				.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_after_opening_brace_of_array_initializer,
 						DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_OPENING_BRACE_IN_ARRAY_INITIALIZER)
@@ -1369,12 +1370,13 @@ public class FormatterModifyDialog extends ModifyDialog {
 						.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_methods, DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_ANNOTATION_ON_METHOD)
 						.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_local_variables, DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_ANNOTATION_ON_LOCAL_VARIABLE)
 						.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_paramters, DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_ANNOTATION_ON_PARAMETER)
+						.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_record_paramters, DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_ANNOTATION_ON_RECORD_PARAMETER)
 						.pref(FormatterMessages.FormatterModifyDialog_newLines_pref_type_annotations, DefaultCodeFormatterConstants.FORMATTER_INSERT_NEW_LINE_AFTER_TYPE_ANNOTATION))
 				.node(createKeepOnOneLineSection())
 				.build(null, (parent, label, key) -> {
 					String[] values= CheckboxPreference.DO_NOT_INSERT_INSERT;
 					if (parent.getKey().endsWith("-ifelse") || parent.getKey().endsWith("-simpleloops") //$NON-NLS-1$ //$NON-NLS-2$
-							|| DefaultCodeFormatterConstants.FORMATTER_PUT_EMPTY_STATEMENT_ON_NEW_LINE.equals(key)) {
+							|| DefaultCodeFormatterConstants.FORMATTER_PUT_EMPTY_STATEMENT_ON_NEW_LINE.equals(key) || DefaultCodeFormatterConstants.FORMATTER_PUT_TEXT_BLOCK_QUOTES_ON_NEW_LINE.equals(key) ) {
 						values= CheckboxPreference.FALSE_TRUE;
 					}
 					return fTree.addCheckbox(parent, label, key, values);
@@ -1624,10 +1626,11 @@ public class FormatterModifyDialog extends ModifyDialog {
 				});
 
 		Preference<?> javadocMaster= section.findChildPreference(DefaultCodeFormatterConstants.FORMATTER_COMMENT_FORMAT_JAVADOC_COMMENT);
+		Preference<?> markdownMaster= section.findChildPreference(DefaultCodeFormatterConstants.FORMATTER_COMMENT_FORMAT_MARKDOWN_COMMENT);
 		Preference<?> blockMaster= section.findChildPreference(DefaultCodeFormatterConstants.FORMATTER_COMMENT_FORMAT_BLOCK_COMMENT);
 		Preference<?> headerMaster= section.findChildPreference(DefaultCodeFormatterConstants.FORMATTER_COMMENT_FORMAT_HEADER);
 
-		Predicate<String> javadocChecker= v -> DefaultCodeFormatterConstants.TRUE.equals(javadocMaster.getValue()) || DefaultCodeFormatterConstants.TRUE.equals(headerMaster.getValue());
+		Predicate<String> javadocChecker= v -> DefaultCodeFormatterConstants.TRUE.equals(javadocMaster.getValue()) ||  DefaultCodeFormatterConstants.TRUE.equals(markdownMaster.getValue()) || DefaultCodeFormatterConstants.TRUE.equals(headerMaster.getValue());
 		Predicate<String> blockChecker= v -> DefaultCodeFormatterConstants.TRUE.equals(blockMaster.getValue()) || DefaultCodeFormatterConstants.TRUE.equals(headerMaster.getValue());
 
 		List<PreferenceTreeNode<?>> mainItems= section.getChildren();
@@ -1636,6 +1639,7 @@ public class FormatterModifyDialog extends ModifyDialog {
 		Section javadocSection= sectionFinder.apply("-javadocs"); //$NON-NLS-1$
 		for (PreferenceTreeNode<?> pref : javadocSection.getChildren()) {
 			javadocMaster.addDependant(pref, javadocChecker);
+			markdownMaster.addDependant(pref, javadocChecker);
 			headerMaster.addDependant(pref, javadocChecker);
 		}
 		Section blockSection= sectionFinder.apply("-blockcomments"); //$NON-NLS-1$

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?eclipse version="3.0"?>
 <!--
-     Copyright (c) 2000, 2021 IBM Corporation and others.
+     Copyright (c) 2000, 2026 IBM Corporation and others.
 
      This program and the accompanying materials
      are made available under the terms of the Eclipse Public License 2.0
@@ -763,6 +763,19 @@
          <keywordReference id="org.eclipse.jdt.ui.wizards.java"/>
       </wizard>
       <wizard
+            name="%NewCompact.label"
+            icon="$nl$/icons/full/etool16/newcompact_wiz.svg"
+            category="org.eclipse.jdt.ui.java"
+            id="org.eclipse.jdt.ui.wizards.NewCompactCreationWizard">
+         <class class="org.eclipse.jdt.internal.ui.wizards.NewCompactCreationWizard">
+            <parameter name="javatype" value="true"/>
+         </class>
+         <description>
+            %NewCompact.description
+         </description>
+         <keywordReference id="org.eclipse.jdt.ui.wizards.java"/>
+      </wizard>
+      <wizard
             name="%NewJavaInterface.label"
             icon="$nl$/icons/full/etool16/newint_wiz.svg"
             category="org.eclipse.jdt.ui.java"
@@ -783,6 +796,17 @@
             id="org.eclipse.jdt.ui.wizards.NewSourceFolderCreationWizard">
          <description>
             %NewSourceFolderCreationWizard.description
+         </description>
+         <keywordReference id="org.eclipse.jdt.ui.wizards.java"/>
+      </wizard>
+      <wizard
+            name="%NewTestSourceFolderCreationWizard.label"
+            icon="$nl$/icons/full/etool16/newpackfolder_wiz.svg"
+            category="org.eclipse.jdt.ui.java"
+            class="org.eclipse.jdt.internal.ui.wizards.NewTestSourceFolderCreationWizard"
+            id="org.eclipse.jdt.ui.wizards.NewTestSourceFolderCreationWizard">
+         <description>
+            %NewTestSourceFolderCreationWizard.description
          </description>
          <keywordReference id="org.eclipse.jdt.ui.wizards.java"/>
       </wizard>
@@ -1190,9 +1214,14 @@
             class="org.eclipse.jdt.internal.ui.javaeditor.CompilationUnitDocumentProvider"/>
    </extension>
 
-   <extension
-         point="org.eclipse.ui.themes">
-        <themeElementCategory label="%javaPresentation.label" id="org.eclipse.jdt.ui.presentation"/>
+   <extension point="org.eclipse.ui.themes">
+        <themeElementCategory 
+        	label="%javaPresentation.label" 
+        	id="org.eclipse.jdt.ui.presentation">
+         	<description>
+            	%JavaTheme.description
+         	</description>
+        </themeElementCategory>
       <fontDefinition
             label="%javaEditorFontDefiniton.label"
             defaultsTo="org.eclipse.jface.textfont"
@@ -1630,6 +1659,12 @@
             id="org.eclipse.jdt.internal.ui.propertiesfileeditor.PropertyKeyHyperlinkDetector"
             name="%PropertyKeyHyperlinkDetector"
             targetId="org.eclipse.jdt.ui.PropertiesFileEditor">
+      </hyperlinkDetector>
+      <hyperlinkDetector
+	        class="org.eclipse.jdt.internal.ui.javaeditor.JavaElementOpenInNewHyperlinkDetector"
+            id="org.eclipse.jdt.internal.ui.javaeditor.JavaElementOpenInNewHyperlinkDetector"
+            name="%JavaElementOpenInNewHyperlinkDetector"
+            targetId="org.eclipse.jdt.ui.javaCode">
       </hyperlinkDetector>
    </extension>
 
@@ -2438,6 +2473,7 @@
             id="org.eclipse.jdt.ui.JavaActionSet">
          <action
                definitionId="org.eclipse.jdt.ui.navigate.open.type.in.hierarchy"
+               icon="$nl$/icons/full/eview16/class_hi.svg"
                label="%OpenTypeInHierarchyAction.label"
                helpContextId="org.eclipse.jdt.ui.open_type_in_hierarchy_action"
                tooltip="%OpenTypeInHierarchyAction.tooltip"
@@ -2537,6 +2573,7 @@
          </action>
          <action
                definitionId="org.eclipse.jdt.ui.edit.text.java.open.call.hierarchy"
+               icon="$nl$/icons/full/eview16/call_hierarchy.svg"
                label="%OpenCallHierarchyAction.label"
                retarget="true"
                menubarPath="navigate/open.ext"
@@ -2544,6 +2581,7 @@
          </action>
          <action
                definitionId="org.eclipse.jdt.ui.edit.text.java.open.type.hierarchy"
+               icon="$nl$/icons/full/eview16/class_hi.svg"
                label="%OpenTypeHierarchyAction.label"
                retarget="true"
                menubarPath="navigate/open.ext"
@@ -2636,6 +2674,7 @@
 <!-- =========================================================================== -->
          <action
                definitionId="org.eclipse.jdt.ui.edit.text.java.open.external.javadoc"
+               icon="$nl$/icons/full/eview16/javadoc.svg"
                label="%OpenAttachedJavadocAction.label"
                retarget="true"
                allowLabelUpdate="true"
@@ -2660,6 +2699,7 @@
          </action>
          <action
                definitionId="org.eclipse.jdt.ui.navigate.gotopackage"
+               icon="$nl$/icons/full/eview16/package.svg"
                label="%GoToPackageAction.label"
                retarget="true"
                menubarPath="navigate/goTo/"
@@ -2667,6 +2707,7 @@
          </action>
          <action
                definitionId="org.eclipse.jdt.ui.navigate.gototype"
+               icon="$nl$/icons/full/eview16/types.svg"
                label="%GoToTypeAction.label"
                retarget="true"
                menubarPath="navigate/goTo/"
@@ -2757,6 +2798,13 @@
                retarget="true"
                menubarPath="org.eclipse.jdt.ui.refactoring.menu/reorgGroup2"
                id="org.eclipse.jdt.ui.actions.ConvertAnonymousToNested">
+         </action>
+         <action
+               definitionId="org.eclipse.jdt.ui.edit.text.java.convert.class.to.record"
+               label="%Refactoring.convertClassToRecordAction.label"
+               retarget="true"
+               menubarPath="org.eclipse.jdt.ui.refactoring.menu/reorgGroup2"
+               id="org.eclipse.jdt.ui.actions.ConvertClassToRecord">
          </action>
          <action
                definitionId="org.eclipse.jdt.ui.edit.text.java.promote.local.variable"
@@ -4096,6 +4144,12 @@
             description="%ActionDefinition.convertAnonymousToNested.description"
             categoryId="org.eclipse.jdt.ui.category.refactoring"
             id="org.eclipse.jdt.ui.edit.text.java.convert.anonymous.to.nested">
+      </command>
+      <command
+            name="%ActionDefinition.convertClassToRecord.name"
+            description="%ActionDefinition.convertClassToRecord.description"
+            categoryId="org.eclipse.jdt.ui.category.refactoring"
+            id="org.eclipse.jdt.ui.edit.text.java.convert.class.to.record">
       </command>
       <command
             name="%ActionDefinition.convertNestedToTopLevel.name"
@@ -6289,6 +6343,22 @@
 		     </enablement>
 		  </commonWizard>
 
+		  <commonWizard
+		        menuGroupId="org.eclipse.jdt.ui.java"
+		        type="new"
+		        wizardId="org.eclipse.jdt.ui.wizards.NewCompactCreationWizard">
+		     <enablement>
+		        <or>
+		           <instanceof value="org.eclipse.jdt.core.IPackageFragment"/>
+		           <instanceof value="org.eclipse.jdt.core.IPackageFragmentRoot"/>
+		           <instanceof value="org.eclipse.jdt.core.ICompilationUnit"/>
+		           <adapt type="org.eclipse.core.resources.IProject">
+		              <test property="org.eclipse.core.resources.projectNature" value="org.eclipse.jdt.core.javanature"/>
+		           </adapt>
+		        </or>
+		     </enablement>
+		  </commonWizard>
+
    	      <commonWizard
 		        menuGroupId="org.eclipse.jdt.ui.java"
 		        type="new"
@@ -6354,6 +6424,19 @@
 		          menuGroupId="org.eclipse.jdt.ui.java"
 		          type="new"
 		          wizardId="org.eclipse.jdt.ui.wizards.NewSourceFolderCreationWizard">
+				<enablement>
+					<or>
+						<instanceof value="org.eclipse.jdt.core.IPackageFragmentRoot"/>
+						<adapt type="org.eclipse.core.resources.IProject">
+							<test property="org.eclipse.core.resources.projectNature" value="org.eclipse.jdt.core.javanature"/>
+						</adapt>
+					</or>
+				</enablement>
+			</commonWizard>
+			<commonWizard
+		          menuGroupId="org.eclipse.jdt.ui.java"
+		          type="new"
+		          wizardId="org.eclipse.jdt.ui.wizards.NewTestSourceFolderCreationWizard">
 				<enablement>
 					<or>
 						<instanceof value="org.eclipse.jdt.core.IPackageFragmentRoot"/>
@@ -7273,7 +7356,7 @@
             runAfter="org.eclipse.jdt.ui.cleanup.boolean_literal">
       </cleanUp>
       <cleanUp
-            class="org.eclipse.jdt.internal.ui.fix.Java50CleanUp"
+            class="org.eclipse.jdt.internal.ui.fix.Java50CleanUpCore"
             id="org.eclipse.jdt.ui.cleanup.java50"
             runAfter="org.eclipse.jdt.ui.cleanup.unused_code">
       </cleanUp>

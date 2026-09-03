@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2024 GK Software SE and others.
+ * Copyright (c) 2024, 2026 GK Software SE and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -13,8 +13,10 @@
  *******************************************************************************/
 package org.eclipse.jdt.ui.tests.hover;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.net.URI;
@@ -504,8 +506,8 @@ public class MarkdownCommentTests extends CoreTests {
 		String superURI= makeEncodedClassUri("p", "Spec03Tags", "Super");
 		String superMURI= makeEncodedMethodUri(true, "p", "Spec03Tags", "Super","m", "I");
 		String expectedContent= """
-				<p>super doc
-				In addition, this methods calls <code><a href='METHOD_URI'>wait()</a></code>.<div><b>Overrides:</b> <a href='SUPER_M_URI'>m(...)</a> in <a href='SUPER_URI'>Super</a></div></p>
+				<p>super doc</p>
+				<p>In addition, this methods calls <code><a href='METHOD_URI'>wait()</a></code>.<div><b>Overrides:</b> <a href='SUPER_M_URI'>m(...)</a> in <a href='SUPER_URI'>Super</a></div></p>
 				<dl><dt>Parameters:</dt><dd><b>i</b> the index</dd></dl>
 				"""
 				.replace("METHOD_URI", waitURI)
@@ -1057,6 +1059,113 @@ public class MarkdownCommentTests extends CoreTests {
 		IType type= cu.getType("ArrayInCode");
 		String actualHtmlContent= getHoverHtmlContent(cu, type);
 		assertHtmlContent(expectedContent, actualHtmlContent);
+	}
+
+	@Test
+	public void testLinkTagWithHttp_01() throws CoreException {
+		String source= """
+				/// {@link https://eclipse.org}
+				public class Markdown {}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Markdown.java", source, null);
+		assertNotNull("Markdown.java", cu);
+
+		String expectedContent = "<a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BMarkdown.java%E2%98%83Markdown%E2%98%82%20https://eclipse.org'> https://eclipse.org</a>";
+		IType type= cu.getType("Markdown");
+		String actualHtmlContent= getHoverHtmlContent(cu, type);
+		int index= actualHtmlContent.lastIndexOf("<a");
+		assertNotEquals(-1, index);
+		String actualSnippet= actualHtmlContent.substring(index, index + expectedContent.length());
+		assertEquals("sequence doesn't match", expectedContent, actualSnippet);
+	}
+
+	@Test
+	public void testLinkTagWithHttp_02() throws CoreException {
+		String source= """
+				/// {@linkplain https://eclipse.org}
+				public class Markdown {}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Markdown.java", source, null);
+		assertNotNull("Markdown.java", cu);
+
+		String expectedContent = "<a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BMarkdown.java%E2%98%83Markdown%E2%98%82%20https://eclipse.org'> https://eclipse.org</a>";
+		IType type= cu.getType("Markdown");
+		String actualHtmlContent= getHoverHtmlContent(cu, type);
+		int index= actualHtmlContent.lastIndexOf("<a");
+		assertNotEquals(-1, index);
+		String actualSnippet= actualHtmlContent.substring(index, index + expectedContent.length());
+		assertEquals("sequence doesn't match", expectedContent, actualSnippet);
+	}
+
+	@Test
+	public void testReturnWithLink_01() throws CoreException {
+		String source= """
+				/// {@return [Object#hashCode]}
+				public class Markdown {}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Markdown.java", source, null);
+		assertNotNull("Markdown.java", cu);
+
+		String expectedContent = "Returns:</dt><dd><code><a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BMarkdown.java%E2%98%83Markdown%E2%98%82Object%E2%98%82hashCode'>Object.hashCode</a></code></dd>";
+		IType type= cu.getType("Markdown");
+		String actualHtmlContent= getHoverHtmlContent(cu, type);
+		int index= actualHtmlContent.lastIndexOf("Returns");
+		assertNotEquals(-1, index);
+		String actualSnippet= actualHtmlContent.substring(index, index + expectedContent.length());
+		assertEquals("sequence doesn't match", expectedContent, actualSnippet);
+	}
+
+	@Test
+	public void testReturnWithLink_02() throws CoreException {
+		String source= """
+				/// {@return [Object#hashCode] the method}
+				public class Markdown {}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Markdown.java", source, null);
+		assertNotNull("Markdown.java", cu);
+
+		String expectedContent = "Returns:</dt><dd><code><a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BMarkdown.java%E2%98%83Markdown%E2%98%82Object%E2%98%82hashCode'>Object.hashCode</a></code> the method</dd>";
+		IType type= cu.getType("Markdown");
+		String actualHtmlContent= getHoverHtmlContent(cu, type);
+		int index= actualHtmlContent.lastIndexOf("Returns");
+		assertNotEquals(-1, index);
+		String actualSnippet= actualHtmlContent.substring(index, index + expectedContent.length());
+		assertEquals("sequence doesn't match", expectedContent, actualSnippet);
+	}
+
+	@Test
+	public void testInheritedMethod() throws CoreException {
+		String source= """
+				public class Base {
+				    /// ## Title
+				    /// *Some* `formatted` {@code text}
+				    /// ```
+				    /// block
+				    /// ```
+				    ///
+				    void m() {}
+
+				    class A1 extends Base {
+				        @Override
+				        void m() {}
+				    }
+				}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Base.java", source, null);
+		assertNotNull("Base.java", cu);
+
+		String expectedContent= """
+				<p><em>Some</em> <code>formatted</code> <code>text
+				</code></p>
+				<pre><code>block
+				</code></pre>
+				<div><b>Overrides:</b> <a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BBase.java%E2%98%83Base~m'>m()</a> in <a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BBase.java%E2%98%83Base'>Base</a></div>
+				""";
+		IType type0= cu.getType("Base");
+		IType type= type0.getType("A1");
+		IMethod method= type.getMethods()[0];
+		String actualHtmlContent= getHoverHtmlContent(cu, method);
+		assertTrue("Doesn't contain expected content", actualHtmlContent.contains(expectedContent));
 	}
 
 }

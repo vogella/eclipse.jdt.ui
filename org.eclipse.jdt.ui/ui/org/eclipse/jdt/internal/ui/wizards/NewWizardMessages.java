@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2024 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -320,6 +320,10 @@ public final class NewWizardMessages extends NLS {
 	public static String NewSourceFolderWizardPage_warning_AddedExclusions_plural;
 	public static String NewSourceFolderWizardPage_ReplaceExistingSourceFolder_label;
 	public static String NewSourceFolderWizardPage_edit_description;
+
+	public static String NewTestSourceFolderWizardPage_title;
+	public static String NewTestSourceFolderWizardPage_description;
+	public static String NewTestSourceFolderWizardPage_edit_description;
 
 	public static String BuildPathsBlock_tab_source;
 	public static String BuildPathsBlock_tab_projects;
@@ -970,6 +974,10 @@ public final class NewWizardMessages extends NLS {
 	public static String ReleaseAttributeConfiguration_nameLabel;
 	public static String ReleaseAttributeConfiguration_path;
 	public static String ReleaseAttributeConfiguration_warning;
+	public static String NewCompactCreationWizard_title;
+	public static String NewCompactWizardPage_description;
+	public static String NewCompactWizardModuleError;
+	public static String NewCompactCreationWizard_HeadTitle;
 
 	static {
 		NLS.initializeMessages(BUNDLE_NAME, NewWizardMessages.class);

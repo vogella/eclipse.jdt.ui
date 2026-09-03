@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2024 GK Software SE and others.
+ * Copyright (c) 2020, 2026 GK Software SE and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -21,6 +21,9 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.After;
 import org.junit.Before;
@@ -41,6 +44,7 @@ import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.ISourceReference;
 import org.eclipse.jdt.core.IType;
@@ -366,5 +370,334 @@ public class JavadocHoverTests extends CoreTests {
 			assertNotEquals("Expected HTML not found, instead found : " + actualHtmlContent,  -1, index);
 		}
 	}
+
+	@Test
+	public void testRecordConstructor1() throws Exception {
+		// https://github.com/eclipse-jdt/eclipse.jdt.ui/issues/931
+		String source=
+				"""
+			package p;
+			public class X {}
+			/**
+			 * A foo bar.
+			 * @param foo The foo.
+			 * @param bar The bar.
+			 */
+			record FooBar(String foo, String bar) {
+				public FooBar {
+					if (foo == null) {
+						foo = "abc";
+					}
+				}
+			}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/X.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType recordType= cu.getType("FooBar");
+		boolean found= false;
+		for (IJavaElement member : recordType.getChildren()) {
+			if (member.getElementName().equals("FooBar")) {
+				assertTrue("not a constructor", member instanceof IMethod method && method.isConstructor());
+				found= true;
+				IJavaElement[] elements= { member };
+				ISourceRange range= ((ISourceReference) member).getNameRange();
+				// copy logic from JavadocHover
+				if (elements.length == 1 && elements[0] instanceof IMethod method && method.isConstructor()
+						&& method.getJavadocRange() == null && method.getParent() instanceof IType type && type.isRecord()) {
+					elements[0]= method.getParent();
+				}
+				JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+				String actualHtmlContent= hoverInfo.getHtml();
+				int index= actualHtmlContent.indexOf("A foo bar.");
+				assertNotEquals("Expected HTML not found, instead found : " + actualHtmlContent,  -1, index);
+			}
+		}
+		assertTrue("constructor not found", found);
+	}
+
+	@Test
+	public void testRecordConstructor2() throws Exception {
+		// https://github.com/eclipse-jdt/eclipse.jdt.ui/issues/931
+		String source=
+				"""
+			package p;
+			public class X {}
+			/**
+			 * A foo bar.
+			 * @param foo The foo.
+			 * @param bar The bar.
+			 */
+			record FooBar(String foo, String bar) {
+				/**
+				 * Foobar constructor
+				 */
+				public FooBar {
+					if (foo == null) {
+						foo = "abc";
+					}
+				}
+			}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/X.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType recordType= cu.getType("FooBar");
+		boolean found= false;
+		for (IJavaElement member : recordType.getChildren()) {
+			if (member.getElementName().equals("FooBar")) {
+				assertTrue("not a constructor", member instanceof IMethod method && method.isConstructor());
+				found= true;
+				IJavaElement[] elements= { member };
+				ISourceRange range= ((ISourceReference) member).getNameRange();
+				// copy logic from JavadocHover
+				if (elements.length == 1 && elements[0] instanceof IMethod method && method.isConstructor()
+						&& method.getJavadocRange() == null && method.getParent() instanceof IType type && type.isRecord()) {
+					elements[0]= method.getParent();
+				}
+				JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+				String actualHtmlContent= hoverInfo.getHtml();
+				int index= actualHtmlContent.indexOf("Foobar constructor");
+				assertNotEquals("Expected HTML not found, instead found : " + actualHtmlContent,  -1, index);
+			}
+		}
+		assertTrue("constructor not found", found);
+	}
+
+	@Test
+	public void testLinkTagWithHttp_01() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					/**
+					 * {@link https://eclipse.org}
+					 */
+					void foo(){}
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+
+			String expectedCodeSequence = "<code><a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BJavadoc.java%E2%98%83Javadoc~foo%E2%98%82%20https://eclipse.org'> https://eclipse.org</a></code>";
+
+			int index= actualHtmlContent.indexOf("<code>");
+			assertNotEquals(-1, index);
+			String actualSnippet= actualHtmlContent.substring(index, index + expectedCodeSequence.length());
+			assertEquals("sequence doesn't match", expectedCodeSequence, actualSnippet);
+		}
+	}
+
+	@Test
+	public void testLinkTagWithHttp_02() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					/**
+					 * {@linkplain https://eclipse.org}
+					 */
+					void foo(){}
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+
+			String expectedCodeSequence = "<a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BJavadoc.java%E2%98%83Javadoc~foo%E2%98%82%20https://eclipse.org'> https://eclipse.org</a>";
+
+			int index= actualHtmlContent.lastIndexOf("<a");
+			assertNotEquals(-1, index);
+			String actualSnippet= actualHtmlContent.substring(index, index + expectedCodeSequence.length());
+			assertEquals("sequence doesn't match", expectedCodeSequence, actualSnippet);
+		}
+	}
+
+	@Test
+	public void testCharConstant() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					static final char c = (char)0;
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+			System.out.println(actualHtmlContent);
+
+			String expectedCodeSequence = "char <a class='header' href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp'>p</a>.<a class='header' href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BJavadoc.java%E2%98%83Javadoc'>Javadoc</a>.c</span> : <span style='white-space:pre'>'' [\\u0000]";
+
+			int index= actualHtmlContent.lastIndexOf("char");
+			assertNotEquals(-1, index);
+			String actualSnippet= actualHtmlContent.substring(index, index + expectedCodeSequence.length());
+			assertEquals("sequence doesn't match", expectedCodeSequence, actualSnippet);
+		}
+	}
+
+	@Test
+	public void testSnippetWringIndentation() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					/**
+					 * {@snippet :
+					 *     var s = "";
+					 * }
+					 */
+					void foo(){}
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+
+			int snippetStartIndex = actualHtmlContent.indexOf("{@snippet :");
+			assertNotEquals(-1, snippetStartIndex);
+		    int contentStart = snippetStartIndex + "{@snippet :".length();
+		    int contentEnd = actualHtmlContent.indexOf("}", contentStart);
+		    String actualSnippetContent = actualHtmlContent.substring(contentStart, contentEnd).trim();
+		    String expectedSnippetContent = "var s = \"\";";
+		    assertEquals(expectedSnippetContent, actualSnippetContent);
+		}
+	}
+
+	@Test
+	public void testSnippetInlineLinkAppliedOnCorrectSubstring() throws Exception {
+		String source="""
+					package p;
+						public class Javadoc {
+						    /**
+							 * Snippet with advanced highlighting and linking.
+							 *
+							 * {@snippet :
+							 *   List<String> items = new ArrayList<>(); // @link substring="ArrayList" target="java.util.ArrayList"
+							 *   items.add("Java 18");                   // @highlight substring="items.add" type="highlighted"
+							 *   System.out.println(items.get(0));       // @highlight regex="\".*\""
+							 * }
+							 */
+						    public static void foo(Object object) {
+						    }
+						}
+				""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		Map<String, String> options = JavaCore.getOptions();
+		JavaCore.setComplianceOptions(JavaCore.VERSION_26, options);
+		options.put(JavaCore.COMPILER_DOC_COMMENT_SUPPORT, JavaCore.ENABLED);
+		fJProject1.setOptions(options);
+		IType type= cu.getType("Javadoc");
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+			Pattern pattern = Pattern.compile("<a\\b[^>]*>.*?</a>", Pattern.DOTALL);
+	        Matcher matcher = pattern.matcher(actualHtmlContent);
+	        String lastAnchor = null;
+	        while (matcher.find()) {
+	            lastAnchor = matcher.group();
+	        }
+	        assertNotNull("Anchor tag not found", lastAnchor);
+            Pattern codePattern = Pattern.compile("<code>(.*?)</code>");
+            Matcher codeMatcher = codePattern.matcher(lastAnchor);
+
+            assertTrue("Code tag not found inside anchor", codeMatcher.find());
+        	assertEquals("sequence doesn't match", "ArrayList", codeMatcher.group(1));
+		}
+	}
+
+	@Test
+	public void testLinkInInlineReturn1() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					/**
+					 * {@return a {@link String}}
+					 */
+					String foo(){ return "abc";}
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+
+			int snippetStartIndex = actualHtmlContent.indexOf("Returns");
+			assertNotEquals(-1, snippetStartIndex);
+		    String expectedContent = "Returns  a <code><a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BJavadoc.java%E2%98%83Javadoc~foo%E2%98%82String'>String</a></code>.<dl>";
+		    String actualSnippetContent = actualHtmlContent.substring(snippetStartIndex, snippetStartIndex + expectedContent.length());
+		    assertEquals(expectedContent, actualSnippetContent);
+		}
+	}
+
+	@Test
+	public void testLinkInInlineReturn2() throws Exception {
+		String source=
+				"""
+				package p;
+				public class Javadoc {
+					/**
+					 * {@return a {@link String} which is abc}
+					 */
+					String foo(){ return "abc";}
+				}
+			""";
+		ICompilationUnit cu= getWorkingCopy("/TestSetupProject/src/p/Javadoc.java", source, null);
+		assertNotNull("TestClass.java", cu);
+
+		IType type= cu.getType("Javadoc");
+		// check javadoc on each member:
+		for (IJavaElement member : type.getChildren()) {
+			IJavaElement[] elements= { member };
+			ISourceRange range= ((ISourceReference) member).getNameRange();
+			JavadocBrowserInformationControlInput hoverInfo= JavadocHover.getHoverInfo(elements, cu, new Region(range.getOffset(), range.getLength()), null);
+			String actualHtmlContent= hoverInfo.getHtml();
+
+			int snippetStartIndex = actualHtmlContent.indexOf("Returns");
+			assertNotEquals(-1, snippetStartIndex);
+		    String expectedContent = "Returns  a <code><a href='eclipse-javadoc:%E2%98%82=TestSetupProject/src%3Cp%7BJavadoc.java%E2%98%83Javadoc~foo%E2%98%82String'>String</a></code> which is abc.<dl>";
+		    String actualSnippetContent = actualHtmlContent.substring(snippetStartIndex, snippetStartIndex + expectedContent.length());
+		    assertEquals(expectedContent, actualSnippetContent);
+		}
+	}
+
 }
 

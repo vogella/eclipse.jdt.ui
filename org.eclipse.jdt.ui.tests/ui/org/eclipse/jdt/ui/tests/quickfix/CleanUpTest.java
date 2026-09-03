@@ -73,7 +73,7 @@ import org.eclipse.jdt.ui.tests.core.rules.ProjectTestSetup;
 
 import org.eclipse.jdt.internal.ui.JavaPlugin;
 import org.eclipse.jdt.internal.ui.fix.AbstractCleanUp;
-import org.eclipse.jdt.internal.ui.fix.Java50CleanUp;
+import org.eclipse.jdt.internal.ui.fix.Java50CleanUpCore;
 import org.eclipse.jdt.internal.ui.fix.MultiFixMessages;
 import org.eclipse.jdt.internal.ui.fix.PlainReplacementCleanUpCore;
 import org.eclipse.jdt.internal.ui.fix.PrimitiveRatherThanWrapperCleanUpCore;
@@ -1918,7 +1918,7 @@ public class CleanUpTest extends CleanUpTestCase {
 
 		HashMap<String, String> map= new HashMap<>();
 		map.put(CleanUpConstants.VARIABLE_DECLARATION_USE_TYPE_ARGUMENTS_FOR_RAW_TYPE_REFERENCES, CleanUpOptions.TRUE);
-		Java50CleanUp cleanUp= new Java50CleanUp(map);
+		Java50CleanUpCore cleanUp= new Java50CleanUpCore(map);
 
 		ASTParser parser= ASTParser.newParser(IASTSharedValues.SHARED_AST_LEVEL);
 		parser.setResolveBindings(true);
@@ -16879,6 +16879,7 @@ public class CleanUpTest extends CleanUpTestCase {
 			package test1;
 
 			public class E {
+				String text;
 			    public boolean doNotSimplifyIfBooleanSame(int x) {
 			        if (x > 0 && x < 7) {
 			            return true;
@@ -16910,6 +16911,13 @@ public class CleanUpTest extends CleanUpTestCase {
 				    } else {
 				        return 2;
 				    }
+				}
+
+				public boolean doNotSimplifyInfixExpression(Integer x) {
+					if (text != null)
+						return text.length() > 43;
+					else
+						return false;
 				}
 			}
 		    """;
@@ -30413,7 +30421,7 @@ public class CleanUpTest extends CleanUpTestCase {
 			        System.out.println("out:"+longvalue3); //$NON-NLS-1$
 			        String jrv = Runtime.version().toString();
 			        System.out.println("out:"+jrv); //$NON-NLS-1$
-			        String jsv = Runtime.version().feature();
+			        String jsv = String.valueOf(Runtime.version().feature());
 			        System.out.println("out:"+jsv); //$NON-NLS-1$
 			    }
 			}

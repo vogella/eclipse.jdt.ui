@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2025 Daniel Schmid and others.
+ * Copyright (c) 2025, 2026 Daniel Schmid and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -12,8 +12,6 @@
  *     Daniel Schmid - initial API and implementation
  *******************************************************************************/
 package org.eclipse.jdt.text.tests.folding;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
 
@@ -31,7 +29,6 @@ import org.eclipse.core.runtime.CoreException;
 
 import org.eclipse.jface.preference.IPreferenceStore;
 
-import org.eclipse.jface.text.IRegion;
 
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IPackageFragment;
@@ -87,11 +84,10 @@ public class MarkdownJavadocFoldingTest {
 				/// Javadoc							//here should be an annotation
 				/// comment
 				/// here
-				public class HeaderCommentTest {
+				class HeaderCommentTest {
 				}
 				""";
-		FoldingTestUtils.assertCodeHasRegions(fPackageFragment, "TestFolding.java", str, 1);
-		List<IRegion> regions= FoldingTestUtils.getProjectionRangesOfFile(fPackageFragment, "TestFolding.java", str);
+		List<FoldingTestUtils.ProjectionRegion> regions= FoldingTestUtils.getProjectionRangesOfPackage(fPackageFragment, str);
 		FoldingTestUtils.assertContainsRegionUsingStartAndEndLine(regions, str, 1, 3); // Javadoc
 	}
 
@@ -99,7 +95,7 @@ public class MarkdownJavadocFoldingTest {
 	public void testSingleMethodWithMarkdownJavadoc() throws Exception {
 		String str= """
 				package org.example.test;
-				public class SingleMethodTest {
+				class SingleMethodTest {
 				    /// Javadoc							//here should be an annotation
 				    /// comment
 				    /// here
@@ -108,9 +104,9 @@ public class MarkdownJavadocFoldingTest {
 				    }
 				}
 				""";
-		List<IRegion> regions= FoldingTestUtils.getProjectionRangesOfFile(fPackageFragment, "TestFolding.java", str);
-		assertEquals(2, regions.size());
+		List<FoldingTestUtils.ProjectionRegion> regions= FoldingTestUtils.getProjectionRangesOfPackage(fPackageFragment, str);
 		FoldingTestUtils.assertContainsRegionUsingStartAndEndLine(regions, str, 2, 4); // Javadoc
-		FoldingTestUtils.assertContainsRegionUsingStartAndEndLine(regions, str, 5, 6); // foo method
+		FoldingTestUtils.assertContainsRegionUsingStartAndEndLine(regions, str, 5, 7); // foo method
 	}
 }
+

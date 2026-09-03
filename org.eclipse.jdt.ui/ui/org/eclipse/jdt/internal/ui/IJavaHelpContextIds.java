@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -123,6 +123,7 @@ public interface IJavaHelpContextIds {
 	String EXTRACT_TEMP_ACTION= 										PREFIX + "extract_temp_action"; //$NON-NLS-1$
 	String PROMOTE_TEMP_TO_FIELD_ACTION= 								PREFIX + "promote_temp_to_field_action"; //$NON-NLS-1$
 	String CONVERT_ANONYMOUS_TO_NESTED_ACTION= 							PREFIX + "convert_anonymous_to_nested_action"; //$NON-NLS-1$
+	String CONVERT_TO_RECORD_ACTION=									PREFIX + "convert_to_record_action"; //$NON-NLS-1$
 	String EXTRACT_CONSTANT_ACTION= 									PREFIX + "extract_constant_action"; //$NON-NLS-1$
 	String INTRODUCE_PARAMETER_ACTION=									PREFIX + "introduce_parameter_action"; //$NON-NLS-1$
 	String INTRODUCE_FACTORY_ACTION= 									PREFIX + "introduce_factory_action"; //$NON-NLS-1$
@@ -372,6 +373,8 @@ public interface IJavaHelpContextIds {
 	String NEW_JAVAPROJECT_WIZARD_PAGE= 								PREFIX + "new_javaproject_wizard_page_context"; //$NON-NLS-1$
 	String NEW_PACKAGE_WIZARD_PAGE= 									PREFIX + "new_package_wizard_page_context"; //$NON-NLS-1$
 	String NEW_CLASS_WIZARD_PAGE= 										PREFIX + "new_class_wizard_page_context"; //$NON-NLS-1$
+
+	String NEW_COMPACT_WIZARD_PAGE= 									PREFIX + "new_compact_wizard_page_context"; //$NON-NLS-1$
 	String NEW_INTERFACE_WIZARD_PAGE= 									PREFIX + "new_interface_wizard_page_context"; //$NON-NLS-1$
 
 	// since 3.1

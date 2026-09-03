@@ -30,6 +30,7 @@ import org.eclipse.jdt.junit.model.ITestRunSession;
 
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.ListenerList;
 
 import org.eclipse.debug.core.DebugPlugin;
@@ -99,6 +100,8 @@ public class TestRunSession implements ITestRunSession {
 	 * Suite for unrooted test case elements, or <code>null</code>.
 	 */
 	private TestSuiteElement fUnrootedSuite;
+
+	private static final ILog LOG = ILog.of(TestRunSession.class);
 
 	private static final String EMPTY_STRING= ""; //$NON-NLS-1$
 
@@ -193,7 +196,7 @@ public class TestRunSession implements ITestRunSession {
 		fTestRoot= new TestRoot(this);
 		fIdToTest= new HashMap<>();
 
-		fTestRunnerClient= new RemoteTestRunnerClient();
+		fTestRunnerClient= new RemoteTestRunnerClient(fTestRunnerKind);
 		fTestRunnerClient.startListening(new ITestRunListener2[] { new TestSessionNotifier() }, port);
 
 		final ILaunchManager launchManager= DebugPlugin.getDefault().getLaunchManager();
@@ -380,7 +383,7 @@ public class TestRunSession implements ITestRunSession {
 			fUnrootedSuite= null;
 
 		} catch (IllegalStateException | CoreException e) {
-			JUnitCorePlugin.log(e);
+			LOG.error(e.getMessage(), e);
 		}
 	}
 
@@ -410,7 +413,7 @@ public class TestRunSession implements ITestRunSession {
 		try {
 			JUnitModel.importIntoTestRunSession(getSwapFile(), this);
 		} catch (IllegalStateException | CoreException e) {
-			JUnitCorePlugin.log(e);
+			LOG.error(e.getMessage(), e);
 			fTestRoot= new TestRoot(this);
 			fTestResult= null;
 		}
@@ -798,7 +801,7 @@ public class TestRunSession implements ITestRunSession {
 		}
 
 		private void logUnexpectedTest(String testId, TestElement testElement) {
-			JUnitCorePlugin.log(new Exception("Unexpected TestElement type for testId '" + testId + "': " + testElement)); //$NON-NLS-1$ //$NON-NLS-2$
+			LOG.error("Unexpected TestElement type for testId '" + testId + "': " + testElement); //$NON-NLS-1$ //$NON-NLS-2$
 		}
 	}
 

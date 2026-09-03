@@ -746,7 +746,7 @@ public class JUnitLaunchConfigurationTab extends AbstractLaunchConfigurationTab 
 	}
 
 	private Set<String> getMethodsForType(IJavaProject javaProject, IType type, TestKind testKind) {
-		if (javaProject == null || type == null || testKind == null)
+		if (javaProject == null || !javaProject.isOpen() || type == null || testKind == null)
 			return Collections.emptySet();
 
 		String testKindId= testKind.getId();
@@ -768,7 +768,7 @@ public class JUnitLaunchConfigurationTab extends AbstractLaunchConfigurationTab 
 		try {
 			IJavaProject javaProject= getJavaProject();
 
-			if (javaProject == null) {
+			if (javaProject == null || !javaProject.isOpen()) {
 				// can't find methods if the project
 				return;
 			}
@@ -967,6 +967,11 @@ public class JUnitLaunchConfigurationTab extends AbstractLaunchConfigurationTab 
 				setErrorMessage(JUnitMessages.JUnitLaunchConfigurationTab_error_projectnotexists);
 				return;
 			}
+			if (!project.isOpen()) {
+				setErrorMessage(JUnitMessages.JUnitLaunchConfigurationTab_error_projectnotopen);
+				return;
+			}
+
 			IJavaProject javaProject= JavaCore.create(project);
 			validateJavaProject(javaProject);
 
@@ -1017,11 +1022,19 @@ public class JUnitLaunchConfigurationTab extends AbstractLaunchConfigurationTab 
 				return;
 			}
 			if (isJUnit5 && !CoreTestSearchEngine.hasJUnit5TestAnnotation(javaProject)) {
-				setErrorMessage(Messages.format(msg, JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME));
+				if (CoreTestSearchEngine.hasJUnit6TestAnnotation(javaProject)) {
+					setErrorMessage(Messages.format(JUnitMessages.JUnitLaunchConfigurationTab_error_mixedJUnitJupiterVersions, new Object[] {5, 6}));
+				} else {
+					setErrorMessage(Messages.format(msg, JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME));
+				}
 				return;
 			}
 			if (isJUnit6 && !CoreTestSearchEngine.hasJUnit6TestAnnotation(javaProject)) {
-				setErrorMessage(Messages.format(msg, JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME));
+				if (CoreTestSearchEngine.hasJUnit5TestAnnotation(javaProject)) {
+					setErrorMessage(Messages.format(JUnitMessages.JUnitLaunchConfigurationTab_error_mixedJUnitJupiterVersions, new Object[] {6, 5}));
+				} else {
+					setErrorMessage(Messages.format(msg, JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME));
+				}
 				return;
 			}
 		}

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2012, 2025 IBM Corporation and others.
+ * Copyright (c) 2012, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -70,6 +70,7 @@ public interface IProposalRelevance {
 	int CHANGE_TO_METHOD= 8;
 	int ADD_FIELD_QUALIFIER= 8;
 	int ADD_THROWS_DECLARATION= 8;
+	int CONVERT_TO_SWITCH= 8;
 	int CHANGE_OVERRIDDEN_MODIFIER_1= 8;
 	int REMOVE_EXCEPTIONS= 8;
 	int SWAP_ARGUMENTS= 8;
@@ -108,6 +109,7 @@ public interface IProposalRelevance {
 	int DECLARE_SEALED_AS_DIRECT_SUPER_TYPE= 7;
 
 	int REMOVE_SEMICOLON= 6;
+	int CONVERT_TO_RECORD= 6;
 	int CREATE_METHOD_IN_SUPER= 6;
 	int QUALIFY_LHS= 6;
 	int CHANGE_PROJECT_COMPLIANCE= 6;
@@ -145,7 +147,6 @@ public interface IProposalRelevance {
 	int CONVERT_PATTERN_INSTANCEOF_TO_SWITCH= 6;
 	int CORRECT_PACKAGE_DECLARATION= 6;
 	int CREATE_NEW_SUB_TYPE= 5;
-
 	int ADD_ALL_MISSING_TAGS= 5;
 	int QUALIFY_INNER_TYPE_NAME= 5;
 	int REMOVE_TAG= 5;
@@ -199,6 +200,7 @@ public interface IProposalRelevance {
 	int QUALIFY_RHS= 5;
 	int ADD_CONSTRUCTOR_FROM_SUPER_CLASS= 5;
 	int GETTER_SETTER_UNQUALIFIED_FIELD_ACCESS= 5;
+	int REPLACE_QUALIFIED_NAME= 5;
 	int RENAME_TYPE= 5;
 	int TYPE_ARGUMENTS_FROM_CONTEXT= 5;
 	int REMOVE_REDUNDANT_NULLNESS_ANNOTATION= 5;
@@ -208,6 +210,7 @@ public interface IProposalRelevance {
 	int CREATE_JUNIT_TEST_CASE= 5;
 	int CREATE_IMPLEMENTATION_FROM_INTERFACE= 5;
 	int CONVERT_TO_TEXT_BLOCK= 5;
+	int REPLACE_NULLABLE= 5;
 
 	int ADD_MISSING_TAG= 4;
 	int INSERT_FALL_THROUGH= 4;
@@ -240,6 +243,7 @@ public interface IProposalRelevance {
 	int ASSIGN_ALL_PARAMS_TO_NEW_FIELDS= 2;
 	int CONVERT_TO_INDEXED_FOR_LOOP= 2;
 	int GENERATE_ENHANCED_FOR_LOOP= 2;
+	int CONVERT_TO_FOR_EACH = 3;
 	int USE_SEPARATE_CATCH_BLOCKS= 2;
 	int INSERT_NULL_CHECK= 2;
 	int COMBINE_CATCH_BLOCKS= 2;

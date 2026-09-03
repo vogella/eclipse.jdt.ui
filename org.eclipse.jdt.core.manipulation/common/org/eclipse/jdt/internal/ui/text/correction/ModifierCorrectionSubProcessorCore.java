@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2019 IBM Corporation and others.
+ * Copyright (c) 2019, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -20,8 +20,11 @@ package org.eclipse.jdt.internal.ui.text.correction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.eclipse.core.runtime.Assert;
@@ -49,6 +52,7 @@ import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
+import org.eclipse.jdt.core.dom.IAnnotationBinding;
 import org.eclipse.jdt.core.dom.IBinding;
 import org.eclipse.jdt.core.dom.IExtendedModifier;
 import org.eclipse.jdt.core.dom.IMethodBinding;
@@ -81,8 +85,10 @@ import org.eclipse.jdt.internal.corext.dom.ASTNodeFactory;
 import org.eclipse.jdt.internal.corext.dom.ASTNodes;
 import org.eclipse.jdt.internal.corext.dom.Bindings;
 import org.eclipse.jdt.internal.corext.dom.ModifierRewrite;
+import org.eclipse.jdt.internal.corext.fix.CleanUpConstants;
 import org.eclipse.jdt.internal.corext.fix.CompilationUnitRewriteOperationsFixCore;
 import org.eclipse.jdt.internal.corext.fix.IProposableFix;
+import org.eclipse.jdt.internal.corext.fix.Java50FixCore;
 import org.eclipse.jdt.internal.corext.fix.LinkedProposalModelCore;
 import org.eclipse.jdt.internal.corext.fix.LinkedProposalPositionGroupCore;
 import org.eclipse.jdt.internal.corext.fix.UnimplementedCodeFixCore;
@@ -90,10 +96,12 @@ import org.eclipse.jdt.internal.corext.fix.UnimplementedCodeFixCore.MakeTypeAbst
 import org.eclipse.jdt.internal.corext.util.JdtFlags;
 import org.eclipse.jdt.internal.corext.util.Messages;
 
+import org.eclipse.jdt.ui.cleanup.CleanUpOptions;
 import org.eclipse.jdt.ui.text.java.IInvocationContext;
 import org.eclipse.jdt.ui.text.java.IProblemLocation;
 import org.eclipse.jdt.ui.text.java.correction.ASTRewriteCorrectionProposalCore;
 
+import org.eclipse.jdt.internal.ui.fix.Java50CleanUpCore;
 import org.eclipse.jdt.internal.ui.text.correction.proposals.FixCorrectionProposalCore;
 import org.eclipse.jdt.internal.ui.text.correction.proposals.ModifierChangeCorrectionProposalCore;
 import org.eclipse.jdt.internal.ui.text.correction.proposals.NewDefiningMethodProposalCore;
@@ -128,6 +136,7 @@ public abstract class ModifierCorrectionSubProcessorCore<T> {
 	private static final int REMOVE_NATIVE_MODIFIER=0x400;
 	private static final int CHANGE_TO_SEALED=0x500;
 	private static final int CHANGE_TO_NONSEALED=0x501;
+	private static final int CORRECTION_CHANGE=0x502;
 	public static final int MAKE_DEPRECATED= 0x600;
 
 	private static class ModifierLinkedModeProposal extends LinkedProposalPositionGroupCore.ProposalCore {
@@ -468,6 +477,40 @@ public abstract class ModifierCorrectionSubProcessorCore<T> {
 			return;
 		}
 
+		if (modifier == Modifier.STATIC) {
+			MethodDeclaration methodDeclaration= (MethodDeclaration)selectedNode;
+			List<IExtendedModifier> modifiers= methodDeclaration.modifiers();
+			for (IExtendedModifier declModifier : modifiers) {
+				if (declModifier instanceof Annotation annotation) {
+					switch (annotation.getTypeName().getFullyQualifiedName()) {
+						case "BeforeEach": //$NON-NLS-1$
+						case "AfterEach": //$NON-NLS-1$
+						case "BeforeAll": //$NON-NLS-1$
+						case "AfterAll": //$NON-NLS-1$
+						case "Before": //$NON-NLS-1$
+						case "After": //$NON-NLS-1$
+						case "Test": //$NON-NLS-1$
+						case "TestTemplate": //$NON-NLS-1$
+						case "TestFactory": //$NON-NLS-1$
+						case "ParameterizedTest": //$NON-NLS-1$
+						case "RepeatedTest": //$NON-NLS-1$
+							IAnnotationBinding binding= annotation.resolveAnnotationBinding();
+							if (binding != null) {
+								ITypeBinding typeBinding= binding.getAnnotationType();
+								String packageName= typeBinding.getPackage().getName();
+								if (packageName.equals("org.junit") //$NON-NLS-1$
+										|| packageName.equals("org.junit.jupiter.api") //$NON-NLS-1$
+										|| packageName.equals("org.junit.jupiter.params")) { //$NON-NLS-1$
+									return;
+								}
+							}
+							break;
+						default:
+							break;
+					}
+				}
+			}
+		}
 		IMethodBinding binding= ((MethodDeclaration) selectedNode).resolveBinding();
 		if (binding != null) {
 			binding= binding.getMethodDeclaration();
@@ -999,6 +1042,29 @@ public abstract class ModifierCorrectionSubProcessorCore<T> {
 
 	}
 
+	public void getOverrideAnnotationProposal(IInvocationContext context, IProblemLocation problem, Collection<T> proposals) {
+		IProposableFix fix= Java50FixCore.createAddOverrideAnnotationFix(context.getASTRoot(), problem);
+		if (fix != null) {
+			Map<String, String> options= new Hashtable<>();
+			options.put(CleanUpConstants.ADD_MISSING_ANNOTATIONS, CleanUpOptions.TRUE);
+			options.put(CleanUpConstants.ADD_MISSING_ANNOTATIONS_OVERRIDE, CleanUpOptions.TRUE);
+			options.put(CleanUpConstants.ADD_MISSING_ANNOTATIONS_OVERRIDE_FOR_INTERFACE_METHOD_IMPLEMENTATION, CleanUpOptions.TRUE);
+			FixCorrectionProposalCore proposal= new FixCorrectionProposalCore(fix, new Java50CleanUpCore(options), IProposalRelevance.ADD_OVERRIDE_ANNOTATION, context);
+			proposals.add(fixCorrectionProposalCoreToT(proposal, CORRECTION_CHANGE));
+		}
+	}
+
+	public void getDeprecatedAnnotationProposal(IInvocationContext context, IProblemLocation problem, Collection<T> proposals) {
+		IProposableFix fix= Java50FixCore.createAddDeprectatedAnnotation(context.getASTRoot(), problem);
+		if (fix != null) {
+			Map<String, String> options= new Hashtable<>();
+			options.put(CleanUpConstants.ADD_MISSING_ANNOTATIONS, CleanUpOptions.TRUE);
+			options.put(CleanUpConstants.ADD_MISSING_ANNOTATIONS_DEPRECATED, CleanUpOptions.TRUE);
+			FixCorrectionProposalCore proposal= new FixCorrectionProposalCore(fix, new Java50CleanUpCore(options), IProposalRelevance.ADD_DEPRECATED_ANNOTATION, context);
+			proposals.add(fixCorrectionProposalCoreToT(proposal, CORRECTION_CHANGE));
+		}
+	}
+
 	static int getNeededVisibility(ASTNode currNode, ITypeBinding targetType, IBinding binding) {
 		ITypeBinding currNodeBinding= Bindings.getBindingOfParentType(currNode);
 		if (currNodeBinding == null) { // import
@@ -1012,7 +1078,9 @@ public abstract class ModifierCorrectionSubProcessorCore<T> {
 			return Modifier.PROTECTED;
 		}
 
-		if (currNodeBinding.getPackage().getKey().equals(targetType.getPackage().getKey())) {
+		String pack1Key = currNodeBinding.getPackage() == null ? null : currNodeBinding.getPackage().getKey();
+		String pack2Key = targetType.getPackage() == null ? null : targetType.getPackage().getKey();
+		if (Objects.equals(pack1Key, pack2Key)) {
 			return 0;
 		}
 		return Modifier.PUBLIC;

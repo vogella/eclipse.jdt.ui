@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.osgi.framework.Bundle;
 import org.osgi.framework.Constants;
@@ -123,7 +124,20 @@ public class JUnitLaunchConfigurationDelegate extends AbstractJavaLaunchConfigur
 		}
 	}
 
-	private VMRunnerConfiguration getVMRunnerConfiguration(ILaunchConfiguration configuration, ILaunch launch, String mode, IProgressMonitor monitor) throws CoreException {
+	/**
+	 * Creates the VM runner configuration for the given JUnit launch configuration.
+	 * Subclasses can use this method to obtain the fully resolved launch configuration
+	 * while customizing the existing protected launch hooks.
+	 *
+	 * @param configuration the launch configuration
+	 * @param launch the launch
+	 * @param mode the launch mode
+	 * @param monitor the progress monitor
+	 * @return the VM runner configuration, or {@code null} if the operation was canceled
+	 * @throws CoreException if the launch configuration cannot be resolved
+	 * @since 3.15
+	 */
+	protected final VMRunnerConfiguration getVMRunnerConfiguration(ILaunchConfiguration configuration, ILaunch launch, String mode, IProgressMonitor monitor) throws CoreException {
 		SubMonitor subMon= SubMonitor.convert(monitor, JUnitMessages.JUnitLaunchConfigurationDelegate_verifying_attriburtes_description, 4);
 		// check for cancellation
 		if (subMon.isCanceled()) {
@@ -230,7 +244,7 @@ public class JUnitLaunchConfigurationDelegate extends AbstractJavaLaunchConfigur
 					}
 					if (!Arrays.stream(classpath).anyMatch(s -> s.contains(BuildPathSupport.JUNIT_JUPITER_API) || s.contains("org.junit.jupiter.api"))) { //$NON-NLS-1$
 						try {
-							JUnitRuntimeClasspathEntry x= new JUnitRuntimeClasspathEntry(BuildPathSupport.JUNIT_JUPITER_API, null, BuildPathSupport.JUNIT_JUPITER_VERSION);
+							JUnitRuntimeClasspathEntry x= new JUnitRuntimeClasspathEntry(BuildPathSupport.JUNIT_JUPITER_API, null, junitJupiterVersion);
 							String entryString= new ClasspathLocalizer(false).entryString(x);
 							int length= classpath.length;
 							System.arraycopy(classpath, 0, classpath= new String[length + 1], 0, length);
@@ -663,9 +677,16 @@ public class JUnitLaunchConfigurationDelegate extends AbstractJavaLaunchConfigur
 	private void addAllSubPackageFragments(IPackageFragment pkgFragment, Set<String> pkgNames) throws JavaModelException {
 		String elementName= getPackageName(pkgFragment.getElementName());
 		IPackageFragmentRoot pkgFragmentRoot= (IPackageFragmentRoot) pkgFragment.getParent();
+		Pattern packagePattern = Pattern.compile(elementName.replace(".", "\\.") + "(?:$|\\..*)"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 		for (IJavaElement child : pkgFragmentRoot.getChildren()) {
-			if (child instanceof IPackageFragment && getPackageName(((IPackageFragment) child).getElementName()).startsWith(elementName) && ((IPackageFragment) child).hasChildren()) {
-				pkgNames.add(getPackageName(((IPackageFragment) child).getElementName()));
+			if (!(child instanceof IPackageFragment childFragment)) {
+				continue;
+			}
+
+			final String childPackageName = getPackageName(childFragment.getElementName());
+
+			if (childFragment.hasChildren() && packagePattern.matcher(childPackageName).matches()) {
+				pkgNames.add(childPackageName);
 			}
 		}
 	}
@@ -688,6 +709,20 @@ public class JUnitLaunchConfigurationDelegate extends AbstractJavaLaunchConfigur
 						String testName= type.getFullyQualifiedName();
 						bw.write(testName);
 						bw.newLine();
+					} else if (testElement instanceof IMethod) {
+						// Extended -testNameFile format: "fully.qualified.ClassName:methodName".
+						// Allows running an arbitrary set of methods (potentially across
+						// multiple classes) within a single launch. The remote runner falls
+						// back to legacy class-only behavior when no ':' is present, so older
+						// runtime jars remain compatible.
+						IMethod method= (IMethod) testElement;
+						IType declaringType= method.getDeclaringType();
+						if (declaringType == null) {
+							abort(JUnitMessages.JUnitLaunchConfigurationDelegate_error_wrong_input, null, IJavaLaunchConfigurationConstants.ERR_UNSPECIFIED_MAIN_TYPE);
+						} else {
+							bw.write(declaringType.getFullyQualifiedName() + ':' + method.getElementName());
+							bw.newLine();
+						}
 					} else {
 						abort(JUnitMessages.JUnitLaunchConfigurationDelegate_error_wrong_input, null, IJavaLaunchConfigurationConstants.ERR_UNSPECIFIED_MAIN_TYPE);
 					}

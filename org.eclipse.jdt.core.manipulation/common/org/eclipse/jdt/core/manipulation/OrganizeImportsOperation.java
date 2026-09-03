@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2025 IBM Corporation and others.
+ * Copyright (c) 2000, 2026 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -56,6 +56,7 @@ import org.eclipse.jdt.core.dom.IBinding;
 import org.eclipse.jdt.core.dom.IModuleBinding;
 import org.eclipse.jdt.core.dom.IPackageBinding;
 import org.eclipse.jdt.core.dom.ITypeBinding;
+import org.eclipse.jdt.core.dom.ImplicitTypeDeclaration;
 import org.eclipse.jdt.core.dom.ImportDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.Modifier;
@@ -78,6 +79,7 @@ import org.eclipse.jdt.internal.core.manipulation.util.Strings;
 import org.eclipse.jdt.internal.corext.dom.ASTNodes;
 import org.eclipse.jdt.internal.corext.dom.Bindings;
 import org.eclipse.jdt.internal.corext.dom.ScopeAnalyzer;
+import org.eclipse.jdt.internal.corext.refactoring.util.JavaElementUtil;
 import org.eclipse.jdt.internal.corext.util.JavaModelUtil;
 import org.eclipse.jdt.internal.corext.util.JdtFlags;
 import org.eclipse.jdt.internal.corext.util.StaticImportFavoritesCompletionInvoker;
@@ -322,7 +324,8 @@ public class OrganizeImportsOperation implements IWorkspaceRunnable {
 			while (parent instanceof Type) {
 				parent= parent.getParent();
 			}
-			if (parent instanceof AbstractTypeDeclaration && parent.getParent() instanceof CompilationUnit) {
+			if ((parent instanceof AbstractTypeDeclaration && parent.getParent() instanceof CompilationUnit)
+					|| (parent instanceof ImplicitTypeDeclaration && parent.getParent() instanceof CompilationUnit)){
 				return true;
 			}
 
@@ -372,7 +375,7 @@ public class OrganizeImportsOperation implements IWorkspaceRunnable {
 							}
 							return;
 						}
-						if (fImplicitImports.contains(qualifier)) {
+						if (fImplicitImports.contains(qualifier) && !typeNameAmbiguousForImplicitModule(typeName)) {
 							return;
 						}
 					}
@@ -393,6 +396,25 @@ public class OrganizeImportsOperation implements IWorkspaceRunnable {
 
 			fImportsAdded.add(typeName);
 			fUnresolvedTypes.put(typeName, new UnresolvedTypeData(ref));
+		}
+
+		private boolean typeNameAmbiguousForImplicitModule(String typeName) {
+			IJavaProject project= fCurrPackage.getJavaProject();
+			IType foundType= null;
+			for (String packageName : fImplicitImports) {
+				try {
+					IType type= project.findType(packageName + "." + typeName); //$NON-NLS-1$
+					if (type != null) {
+						if (foundType != null) {
+							return true;
+						}
+						foundType= type;
+					}
+				} catch (JavaModelException e) {
+					return false;
+				}
+			}
+			return false;
 		}
 
 		private boolean typeNameAmbiguousForImportedModules(String typeName) {
@@ -820,9 +842,14 @@ public class OrganizeImportsOperation implements IWorkspaceRunnable {
 						}
 						String[] staticFavourites= ex.getStaticImportFavorites(identifier, isMethod);
 						fResolvedStaticFavoriteImports.add(identifier);
-						if (staticFavourites.length > 0) {
-							String qualifiedTypeName= Signature.getQualifier(staticFavourites[0]);
-							importRewrite.addStaticImport(qualifiedTypeName, identifier, !isMethod);
+						int i= 0;
+						while (i < staticFavourites.length) {
+							String qualifiedTypeName= Signature.getQualifier(staticFavourites[i]);
+							if (!JavaElementUtil.isForbiddenOnClasspath(importRewrite.getCompilationUnit(), qualifiedTypeName)) {
+								importRewrite.addStaticImport(qualifiedTypeName, identifier, !isMethod);
+								break;
+							}
+							++i;
 						}
 					} catch (JavaModelException e) {
 						return;
@@ -836,7 +863,6 @@ public class OrganizeImportsOperation implements IWorkspaceRunnable {
 			// ignore
 		}
 	}
-
 
 	// find type references in a compilation unit
 	private boolean collectReferences(CompilationUnit astRoot, List<SimpleName> typeReferences, List<SimpleName> staticReferences, Set<String> oldSingleImports,

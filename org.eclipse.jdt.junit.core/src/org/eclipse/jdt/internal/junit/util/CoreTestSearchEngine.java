@@ -16,12 +16,15 @@ package org.eclipse.jdt.internal.junit.util;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 import org.osgi.framework.Version;
 
 import org.eclipse.jdt.junit.JUnitCore;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 
@@ -49,6 +52,10 @@ import org.eclipse.jdt.core.search.SearchParticipant;
 import org.eclipse.jdt.core.search.SearchPattern;
 import org.eclipse.jdt.core.search.SearchRequestor;
 
+import org.eclipse.jdt.internal.core.DefaultWorkingCopyOwner;
+import org.eclipse.jdt.internal.core.JavaProject;
+import org.eclipse.jdt.internal.core.NameLookup;
+import org.eclipse.jdt.internal.core.PackageFragmentRoot;
 import org.eclipse.jdt.internal.junit.JUnitCorePlugin;
 import org.eclipse.jdt.internal.junit.buildpath.BuildPathSupport;
 import org.eclipse.jdt.internal.junit.launcher.ITestKind;
@@ -60,8 +67,21 @@ import org.eclipse.jdt.internal.junit.launcher.TestKindRegistry;
  */
 public class CoreTestSearchEngine {
 
+	/*
+	 * We use these annotations to try to determine if we have a JUnit 5 or 6 test,
+	 * see: https://github.com/eclipse-jdt/eclipse.jdt.ui/issues/2903
+	 */
+	private static final String[] JUNIT_JUPITER_TEST_ANNOTATIONS = {
+		JUnitCorePlugin.JUNIT5_JUPITER_TEST_ANNOTATION_NAME,
+		JUnitCorePlugin.JUNIT5_JUPITER_TEST_TEMPLATE_ANNOTATION,
+		JUnitCorePlugin.JUNIT5_JUPITER_CLASS_TEMPLATE_ANNOTATION,
+	};
+
 	private static final String JUNIT_PLATFORM_SUITE_API_PREFIX= BuildPathSupport.JUNIT_PLATFORM_SUITE_API;
 	private static final String JUNIT_PLATFORM_COMMONS_PREFIX= BuildPathSupport.JUNIT_PLATFORM_COMMONS;
+	private static final String JUNIT_JUPITER_API_PREFIX= BuildPathSupport.JUNIT_JUPITER_API;
+	private static final String ENGINE_VERSION_JUNIT_JUPITER= "Engine-Version-junit-jupiter"; //$NON-NLS-1$
+	private static final String SPECIFICATION_VERSION= "Specification-Version"; //$NON-NLS-1$
 	private static final String JAR_EXTENSION= ".jar"; //$NON-NLS-1$
 
 	public static boolean isTestOrTestSuite(IType declaringType) throws CoreException {
@@ -136,7 +156,7 @@ public class CoreTestSearchEngine {
 	public static boolean hasJUnit4TestAnnotation(IJavaProject project) {
 		try {
 			if (project != null) {
-				IType type= project.findType(JUnitCorePlugin.JUNIT4_ANNOTATION_NAME);
+				IType type= findAnnotations(project, JUnitCorePlugin.JUNIT4_ANNOTATION_NAME);
 				if (type != null) {
 					// @Test annotation is not accessible if the JUnit classpath container is set to JUnit 3
 					// (although it may resolve to a JUnit 4 JAR)
@@ -152,7 +172,7 @@ public class CoreTestSearchEngine {
 	}
 
 	public static boolean hasJUnit5TestAnnotation(IJavaProject project) {
-		return hasJUnitJupiterTestAnnotation(project, 1, // we check JUnit 5 platform bundles, they range in [1.0,2.0)
+		return hasJUnitJupiterTestAnnotation(project, 5, // we check JUnit 5 platform bundles, they range in [1.0,2.0)
 				JUnitCore.JUNIT3_CONTAINER_PATH, JUnitCore.JUNIT4_CONTAINER_PATH, JUnitCore.JUNIT6_CONTAINER_PATH);
 	}
 
@@ -164,25 +184,62 @@ public class CoreTestSearchEngine {
 	private static boolean hasJUnitJupiterTestAnnotation(IJavaProject project, int junitMajorVersion, IPath... disallowedJunitContainerPaths) {
 		try {
 			if (project != null) {
-				String junitBundlePrefix = JUNIT_PLATFORM_COMMONS_PREFIX;
-				IType type= project.findType(JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME);
+				String junitBundlePrefix = JUNIT_JUPITER_API_PREFIX;
+				IType type= findAnnotations(project, JUNIT_JUPITER_TEST_ANNOTATIONS);
 				if (type == null) {
-					junitBundlePrefix = JUNIT_PLATFORM_SUITE_API_PREFIX;
-					type= project.findType(JUnitCorePlugin.JUNIT5_SUITE_ANNOTATION_NAME);
+					if (junitMajorVersion == 5) {
+						junitMajorVersion = 1;
+					}
+					junitBundlePrefix = JUNIT_PLATFORM_COMMONS_PREFIX;
+					type= findAnnotations(project, JUnitCorePlugin.JUNIT5_TESTABLE_ANNOTATION_NAME);
+					if (type == null) {
+						junitBundlePrefix = JUNIT_PLATFORM_SUITE_API_PREFIX;
+						type= findAnnotations(project, JUnitCorePlugin.JUNIT5_SUITE_ANNOTATION_NAME);
+					}
 				}
 				if (type != null) {
 					// check if we have the right JUnit JUpiter version
-					String filename= type.getPath().lastSegment();
-					if ((filename.startsWith(junitBundlePrefix + "_") || filename.startsWith(junitBundlePrefix + "-")) && filename.endsWith(JAR_EXTENSION)) { //$NON-NLS-1$ //$NON-NLS-2$
+					Version version = null;
+					PackageFragmentRoot root= (PackageFragmentRoot) type.getAncestor(IJavaElement.PACKAGE_FRAGMENT_ROOT);
+					String filename= root != null ? root.getPath().lastSegment() : type.getPath().lastSegment();
+					boolean isJar = filename.endsWith(JAR_EXTENSION);
+					// Try matching the library name, this should be enough for many cases.
+					if (isJar && (filename.startsWith(junitBundlePrefix + "_") || filename.startsWith(junitBundlePrefix + "-"))) { //$NON-NLS-1$ //$NON-NLS-2$
 						String versionString = filename.substring(junitBundlePrefix.length() + 1, filename.length() - JAR_EXTENSION.length());
-						Version version = new Version(versionString);
-						if (version.getMajor() != junitMajorVersion) {
-							return false;
+						try {
+							version = Version.parseVersion(versionString);
+						} catch (IllegalArgumentException e) {
+							/*
+							 * Some JUnit distributions use different naming, ignore those. See: https://github.com/eclipse-jdt/eclipse.jdt.ui/issues/2665
+							 * We will try parsing a jar manifest below.
+							 */
 						}
+					}
+					if (isJar && version == null) {
+						try {
+							Manifest manifest= null;
+							if (root != null) {
+								manifest= root.getManifest();
+							}
+							if (manifest != null) {
+								Attributes attributes= manifest.getMainAttributes();
+								String versionString= getJUnitVersionFromManifest(attributes);
+								if (versionString != null) {
+									version= Version.parseVersion(versionString);
+								}
+							}
+						} catch (Throwable e) {
+							ILog.of(CoreTestSearchEngine.class).warn("Failed to determine JUnit version", e); //$NON-NLS-1$
+						}
+					}
+					if (version != null && version.getMajor() != junitMajorVersion) {
+						return false;
+					}
+					if (root == null) {
+						return false;
 					}
 					// @Testable/@Suite annotations are not accessible if the JUnit classpath container is set to JUnit 3 or JUnit 4
 					// (although it may resolve to a JUnit 5 JAR)
-					IPackageFragmentRoot root= (IPackageFragmentRoot) type.getAncestor(IJavaElement.PACKAGE_FRAGMENT_ROOT);
 					IClasspathEntry cpEntry= root.getRawClasspathEntry();
 					IPath entryPath= cpEntry.getPath();
 					return !Arrays.asList(disallowedJunitContainerPaths).contains(entryPath);
@@ -192,6 +249,21 @@ public class CoreTestSearchEngine {
 			// not available
 		}
 		return false;
+	}
+
+	/*
+	 * The junit-platform-console-standalone fat JAR bundles a JUnit Jupiter engine whose version differs from the JUnit
+	 * Platform version reported by {@code Specification-Version}. It is the only JUnit artifact that advertises the bundled
+	 * Jupiter version through the {@code Engine-Version-junit-jupiter} manifest attribute, so prefer that attribute when it
+	 * is present. This works regardless of how the JAR file has been renamed. See
+	 * https://github.com/redhat-developer/vscode-java/issues/4396
+	 */
+	private static String getJUnitVersionFromManifest(Attributes attributes) {
+		String jupiterEngineVersion= attributes.getValue(ENGINE_VERSION_JUNIT_JUPITER);
+		if (jupiterEngineVersion != null) {
+			return jupiterEngineVersion;
+		}
+		return attributes.getValue(SPECIFICATION_VERSION);
 	}
 
 	public static boolean isTestImplementor(IType type) throws JavaModelException {
@@ -298,5 +370,25 @@ public class CoreTestSearchEngine {
 		SearchPattern suitePattern= SearchPattern.createPattern("suite() Test", IJavaSearchConstants.METHOD, IJavaSearchConstants.DECLARATIONS, matchRule); //$NON-NLS-1$
 		SearchParticipant[] participants= new SearchParticipant[] { SearchEngine.getDefaultSearchParticipant() };
 		new SearchEngine().search(suitePattern, participants, scope, requestor, pm);
+	}
+
+	private static IType findAnnotations(IJavaProject project, String... fullyQualifiedNames) throws JavaModelException {
+		if (project instanceof JavaProject p) {
+			NameLookup lookup= p.newNameLookup(DefaultWorkingCopyOwner.PRIMARY);
+			for (String fullyQualifiedName : fullyQualifiedNames) {
+				NameLookup.Answer answer = lookup.findType(
+						fullyQualifiedName,
+						false /* no partial matches */,
+						NameLookup.ACCEPT_ANNOTATIONS,
+						false /* no secondary types */,
+						true /* wait for indexer */,
+						true /* check restrictions */,
+						null);
+				if (answer != null && !answer.isNonAccessible()) {
+					return answer.type;
+				}
+			}
+		}
+		return null;
 	}
 }
